@@ -1,1 +1,34 @@
-.idea
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS resource forks
+._*
+.DS_Store
+
+# Ruby
+.ruby-lsp/
+.bundle/
+vendor/bundle/
+
+# Backup files
+*.bak
+*.orig
+
+# Logs (generated at runtime)
+profanity.log
+*.log
+
+# YARD generated docs
+doc/
+.yardoc/
+
+# Review/development docs (not for public distribution)
+MODERNIZATION.md
+PROFANITY_REVIEW.md
+
+# Temporary files
+/tmp/

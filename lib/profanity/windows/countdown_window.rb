@@ -1,0 +1,103 @@
+# frozen_string_literal: true
+
+=begin
+Roundtime and casttime countdown display window.
+=end
+
+# Countdown timer window for roundtime/casttime display.
+#
+# Computes remaining seconds from an end timestamp adjusted by server
+# time offset. Renders a color-coded bar with primary and secondary
+# countdown regions, updating only when the displayed value changes.
+class CountdownWindow < BaseWindow
+  # @return [String] label text displayed at the left of the bar
+  attr_accessor :label
+
+  # @return [Array<String>] foreground hex color codes indexed by bar region
+  attr_accessor :fg
+
+  # @return [Array<String, nil>] background hex color codes indexed by bar region
+  attr_accessor :bg
+
+  # @return [Numeric] Unix timestamp when the primary countdown expires
+  attr_accessor :end_time
+
+  # @return [Numeric] Unix timestamp when the secondary countdown expires
+  attr_accessor :secondary_end_time
+
+  # @return [Boolean, nil] whether the countdown is actively running
+  attr_accessor :active
+
+  # @return [Integer] current primary countdown value in seconds
+  attr_reader :value
+
+  # @return [Integer] current secondary countdown value in seconds
+  attr_reader :secondary_value
+
+  def initialize(*args)
+    @label = String.new
+    @fg = []
+    @bg = [nil, 'ff0000', '0000ff']
+    @active = nil
+    @old_active = nil
+    @end_time = 0
+    @secondary_end_time = 0
+    super
+  end
+
+  # Recalculate remaining time and redraw if the display changed.
+  #
+  # @return [Boolean] true if the display was redrawn, false if unchanged
+  def update
+    old_value = @value
+    old_secondary_value = @secondary_value
+    @value = [(@end_time.to_f - Time.now.to_f + $server_time_offset.to_f - COUNTDOWN_OFFSET).ceil, 0].max
+    @secondary_value = [(@secondary_end_time.to_f - Time.now.to_f + $server_time_offset.to_f - COUNTDOWN_OFFSET).ceil, 0].max
+    if (old_value != @value) or (old_secondary_value != @secondary_value) or (@old_active != @active)
+      str = "#{@label}#{[@value, @secondary_value].max.to_s.rjust(maxx - @label.length)}"
+      setpos(0, 0)
+      if ((@value == 0) and (@secondary_value == 0)) or (@active == false)
+        if @active
+          str = "#{@label}#{'?'.rjust(maxx - @label.length)}"
+          left_background_str = str[0, 1].to_s
+          right_background_str = str[left_background_str.length, (@label.length + (maxx - @label.length))].to_s
+          attron(Curses.color_pair(get_color_pair_id(@fg[1], @bg[1])) | Curses::A_NORMAL) do
+            addstr left_background_str
+          end
+          attron(Curses.color_pair(get_color_pair_id(@fg[2], @bg[2])) | Curses::A_NORMAL) do
+            addstr right_background_str
+          end
+        else
+          attron(Curses.color_pair(get_color_pair_id(@fg[0], @bg[0])) | Curses::A_NORMAL) do
+            addstr str
+          end
+        end
+      else
+        left_background_str = str[0, @value].to_s
+        secondary_background_str = str[left_background_str.length, (@secondary_value - @value)].to_s
+        right_background_str = str[(left_background_str.length + secondary_background_str.length),
+                                   (@label.length + (maxx - @label.length))].to_s
+        unless left_background_str.empty?
+          attron(Curses.color_pair(get_color_pair_id(@fg[1], @bg[1])) | Curses::A_NORMAL) do
+            addstr left_background_str
+          end
+        end
+        unless secondary_background_str.empty?
+          attron(Curses.color_pair(get_color_pair_id(@fg[2], @bg[2])) | Curses::A_NORMAL) do
+            addstr secondary_background_str
+          end
+        end
+        unless right_background_str.empty?
+          attron(Curses.color_pair(get_color_pair_id(@fg[3], @bg[3])) | Curses::A_NORMAL) do
+            addstr right_background_str
+          end
+        end
+      end
+      @old_active = @active
+      noutrefresh
+      true
+    else
+      false
+    end
+  end
+end

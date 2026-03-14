@@ -1,0 +1,9 @@
+# frozen_string_literal: true
+
+=begin
+version.rb: ProfanityFE version constant.
+=end
+
+# ProfanityFE version as a frozen string constant
+# (was $version = 0.82, a float global — IEEE 754 makes 0.82 imprecise)
+VERSION = '0.82'
