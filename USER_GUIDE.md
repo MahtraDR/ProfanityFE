@@ -23,7 +23,11 @@ running inside a standard terminal emulator.
 9. [Window Scrolling](#9-window-scrolling)
 10. [Tab Management](#10-tab-management)
 11. [Stream Routing](#11-stream-routing)
-12. [Tips and Troubleshooting](#12-tips-and-troubleshooting)
+13. [Link Display](#13-link-display)
+14. [Mouse Scroll Wheel](#14-mouse-scroll-wheel)
+15. [Autocomplete](#15-autocomplete)
+16. [Process Title](#16-process-title)
+17. [Tips and Troubleshooting](#17-tips-and-troubleshooting)
 
 ---
 
@@ -42,7 +46,7 @@ running inside a standard terminal emulator.
 Start ProfanityFE by pointing it at the port your game proxy is listening on:
 
 ```bash
-ruby profanity.rb --port=8000
+ruby profanity.rb --port=8000 --char=Mahtra
 ```
 
 ProfanityFE connects to `127.0.0.1` on the specified port.
@@ -52,32 +56,52 @@ ProfanityFE connects to `127.0.0.1` on the specified port.
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--port=<port>` | `8000` | TCP port to connect to on localhost |
-| `--settings-file=<path>` | `~/.profanity.xml` | Path to the settings XML file |
+| `--char=<name>` | -- | Character name (for log file and process title) |
+| `--config=<name>` | same as `--char` | Config name to load (use when multiple characters share one config) |
+| `--template=<file>` | -- | Template filename from `templates/` subfolder |
+| `--no-status` | off | Disable process title updates |
+| `--links` | off | Enable in-game link highlighting |
+| `--remote-url` | off | Display LaunchURLs as text (for SSH/remote sessions) |
 | `--default-color-id=<id>` | `7` | Curses color ID for the default foreground color |
 | `--default-background-color-id=<id>` | `0` | Curses color ID for the default background color |
 | `--custom-colors=<on\|off\|yes\|no>` | auto-detected | Force custom color mode on or off |
 | `--use-default-colors` | off | Call `Curses.use_default_colors` for transparent background support |
-| `--log-file=<path>` | `profanity.log` | Full path for the log file (overrides --log-dir) |
-| `--log-dir=<dir>` | current directory | Directory for the default `profanity.log` file |
+| `--log-file=<path>` | see below | Full path for the log file (overrides --log-dir and --char) |
+| `--log-dir=<dir>` | see below | Directory for the log file |
 | `--help` / `-h` / `-?` | -- | Print usage and exit |
+
+> **Note:** `--settings-file=<path>` is still supported as a hidden override
+> that bypasses the normal config resolution order (see
+> [Settings File](#2-settings-file)).
 
 #### Examples
 
 ```bash
-# Connect on port 8010 with a custom settings file
-ruby profanity.rb --port=8010 --settings-file=~/mychar.profanity.xml
+# Typical launch: connect on port 8000 as character Mahtra
+ruby profanity.rb --port=8000 --char=Mahtra
+
+# Connect on port 8010 with link highlighting enabled
+ruby profanity.rb --port=8010 --char=Navesi --links
 
 # Force custom colors off (use nearest-match from 256-color palette)
-ruby profanity.rb --port=8000 --custom-colors=off
+ruby profanity.rb --port=8000 --char=Mahtra --custom-colors=off
 
 # Transparent background (if your terminal supports it)
-ruby profanity.rb --port=8000 --use-default-colors --default-color-id=-1 --default-background-color-id=-1
+ruby profanity.rb --port=8000 --char=Mahtra --use-default-colors --default-color-id=-1 --default-background-color-id=-1
 
-# Log to a specific file
-ruby profanity.rb --port=8000 --log-file=~/logs/profanity-mahtra.log
+# Remote/SSH session (display URLs as text instead of launching)
+ruby profanity.rb --port=8000 --char=Mahtra --remote-url
 
-# Log to a specific directory (uses default filename profanity.log)
-ruby profanity.rb --port=8000 --log-dir=~/logs
+# Log to a specific file (overrides --char default)
+ruby profanity.rb --port=8000 --char=Mahtra --log-file=~/logs/mahtra.log
+
+# Disable process title updates
+ruby profanity.rb --port=8000 --char=Mahtra --no-status
+
+# Multiple characters sharing one config (separate logs and process titles)
+ruby profanity.rb --port=8000 --char=Mahtra                     # config: mahtra.xml, log: mahtra.log
+ruby profanity.rb --port=8001 --char=Othchar --config=mahtra    # config: mahtra.xml, log: othchar.log
+ruby profanity.rb --port=8002 --char=Thirdchar --config=mahtra  # config: mahtra.xml, log: thirdchar.log
 ```
 
 ---
@@ -87,27 +111,42 @@ ruby profanity.rb --port=8000 --log-dir=~/logs
 ### Creating Your Settings File
 
 ProfanityFE requires a settings XML file to run. **You must create this file
-yourself** — it is not generated automatically.
+yourself** -- it is not generated automatically.
 
-The included `mahtra.xml` is an **example configuration** with a complete layout,
-extensive highlights, gag patterns, and key bindings for DragonRealms. It is a
-real player's configuration and serves as a reference. **Do not use it as-is** —
-copy it and customize it for your own character, terminal size, and preferences:
+The `~/.profanity/` directory is created automatically on first run. This is
+where your personal per-character configuration files live.
+
+The included `mahtra.xml` (in the `templates/` subfolder) is an **example
+configuration** with a complete layout, extensive highlights, gag patterns, and
+key bindings for DragonRealms. It is a real player's configuration and serves as
+a reference. **Do not use it as-is** -- copy it and customize it for your own
+character, terminal size, and preferences:
 
 ```bash
-cp mahtra.xml ~/.profanity.xml
+cp templates/mahtra.xml ~/.profanity/mychar.xml
 ```
 
-Then edit `~/.profanity.xml` to suit your needs. At minimum you'll want to:
+Then edit `~/.profanity/mychar.xml` to suit your needs. At minimum you'll want
+to:
 - Adjust the layout dimensions for your terminal size
 - Customize highlight patterns for your character's guild and hunting areas
 - Remove gag patterns for creatures you don't fight
 - Add your own key bindings and macros
 
-### Location
+### Config Resolution Order
 
-By default ProfanityFE reads `~/.profanity.xml`. You can override this with
-`--settings-file=<path>`.
+When you launch with `--char=<name>`, ProfanityFE searches for a settings file
+in this order:
+
+1. `~/.profanity/<charname>.xml` -- personal config (highest priority)
+2. `templates/<charname>.xml` -- bundled with the app
+3. `templates/default.xml` -- fallback
+
+The first file found is used. This means you can start with a bundled template
+and later override it by placing a customized copy in `~/.profanity/`.
+
+The `--settings-file=<path>` flag still works as a direct override, bypassing
+the resolution order entirely.
 
 ### Overall XML Structure
 
@@ -926,6 +965,12 @@ Actions are predefined behaviors that can be bound to keys:
 | `prev_tab` | Switch to the previous tab in all tabbed windows |
 | `switch_tab_1` through `switch_tab_5` | Switch to tab 1-5 by index |
 
+**Autocomplete:**
+
+| Action | Description |
+|--------|-------------|
+| `autocomplete` | Complete the current input from command history (see [Autocomplete](#15-autocomplete)) |
+
 ### Macro Syntax
 
 Macros are strings that get "typed" into the command buffer with special escape
@@ -1276,6 +1321,24 @@ Manage tabs in tabbed windows.
 
 When listing tabs, output looks like: `* Tabs: 1:main* 2:combat 3:thoughts`
 
+### .links
+
+Toggle in-game link highlighting on or off at runtime. See
+[Link Display](#13-link-display) for details.
+
+```
+.links
+```
+
+### .scrollcfg
+
+Launch the interactive mouse scroll wheel calibration wizard. See
+[Mouse Scroll Wheel](#14-mouse-scroll-wheel) for details.
+
+```
+.scrollcfg
+```
+
 ---
 
 ## 8. Color System
@@ -1527,7 +1590,85 @@ is the replacement string (defaults to empty string if omitted).
 
 ---
 
-## 12. Tips and Troubleshooting
+## 13. Link Display
+
+The `--links` flag enables colored highlighting of in-game links (URLs and
+clickable elements). When enabled, link text is rendered using the `links`
+preset color.
+
+To use link highlighting, define a `links` preset in your settings XML:
+
+```xml
+<preset id='links' fg='5f87ff'/>
+```
+
+You can toggle link highlighting at runtime with the `.links` dot-command
+without restarting.
+
+---
+
+## 14. Mouse Scroll Wheel
+
+ProfanityFE supports mouse scroll wheel input for scrolling the active text
+window. Because terminal emulators send different escape sequences for scroll
+events, calibration is required.
+
+### Calibration
+
+Run the `.scrollcfg` command to start the interactive calibration wizard. It
+will prompt you to scroll up and then scroll down so it can learn the keycodes
+your terminal sends. Follow the on-screen instructions.
+
+### Saved Settings
+
+Scroll wheel settings are saved automatically to `~/.profanity/settings.json`.
+They persist across sessions -- you only need to calibrate once per terminal
+emulator.
+
+---
+
+## 15. Autocomplete
+
+ProfanityFE provides command-line autocomplete via the `autocomplete` action.
+Bind it to a key (typically Tab) in your settings file:
+
+```xml
+<key id='tab' action='autocomplete'/>
+```
+
+When you press the bound key, ProfanityFE searches your command history for
+entries matching the current input:
+
+- **Single match:** the command line is auto-filled with the matched command.
+- **Multiple matches:** a numbered list of candidates is displayed in the main
+  window, and the common prefix is filled in automatically.
+
+---
+
+## 16. Process Title
+
+ProfanityFE updates three things to show your character name and game state:
+
+1. **Process name** (`ps` output) -- via `Process.setproctitle`
+2. **Terminal title** (title bar of xterm/iTerm/etc.) -- via `\033]0;` escape
+3. **Screen/tmux window name** (window list) -- via `\ek` escape
+
+All three show the same format:
+
+```
+CharName [prompt:room]
+```
+
+This is especially useful when running multiple characters in tmux or GNU
+Screen -- each pane/window shows which character is active and what room
+they're in. The title updates dynamically as you move between rooms.
+
+Disable this behavior with the `--no-status` flag if your terminal does not
+support title updates or you find it distracting.
+
+---
+
+## 17. Tips and Troubleshooting
 
 ### Terminal Requirements
 
@@ -1567,8 +1708,18 @@ is the replacement string (defaults to empty string if omitted).
 
 ### Logging
 
-ProfanityFE writes errors and debug information to `profanity.log` in the
-current working directory. Check this file if something goes wrong.
+ProfanityFE writes errors and debug information to a log file. The default
+location depends on how you launch:
+
+- **With `--char=<name>`:** log file defaults to `~/.profanity/<charname>.log`
+- **Without `--char`:** log file defaults to `profanity.log` in the current
+  working directory
+
+The `--log-file=<path>` flag overrides the log path entirely. The
+`--log-dir=<dir>` flag sets the directory while keeping the default filename.
+Both flags take precedence over the `--char` default.
+
+Check the log file if something goes wrong.
 
 ### GNU Screen and tmux
 

@@ -724,9 +724,9 @@ class GameTextProcessor
       @state.need_prompt = false
     elsif (match = text.match(/^\s*You are stunned for (?<rounds>[0-9]+) rounds?/))
       new_stun(match[:rounds].to_i * 5)
-    # elsif text =~ /^Deep and resonating, you feel the chant ...
-    #   # raise dead stun
-    #   new_stun(30.6)
+    elsif text =~ /^Deep and resonating, you feel the chant that falls from your lips|^Moisture beads upon your skin and you feel your eyes cloud over|^Lifting your finger, you begin to chant and draw a series of conjoined circles|^Crouching beside the prone form of|^Murmuring softly, you call upon your connection with the Destroyer|^Rich and lively, the scent of wild flowers suddenly fills the air|^Breathing slowly, you extend your senses towards the world around you|^Your surroundings grow dim\.\.\.you lapse into a state of awareness only|^Murmuring softly, a mournful chant slips from your lips|^Emptying all breathe from your body, you slowly still yourself|^Thin at first, a fine layer of rime tickles your hands|^As you begin to chant,? you notice the scent of dry, dusty parchment|^Wrapped in an aura of chill, you close your eyes and softly begin to chant|^As .*? begins to chant, your spirit is drawn closer to your body/
+      # Raise Dead stun (cleric spell — all deity-specific messaging variants)
+      new_stun(30.6)
     elsif text =~ /^Just as you think the falling will never end, you crash through an ethereal barrier which bursts into a dazzling kaleidoscope of color!  Your sensation of falling turns to dizziness and you feel unusually heavy for a moment\.  Everything seems to stop for a prolonged second and then WHUMP!!!/
       # Shadow Valley exit stun
       new_stun(16.2)
@@ -876,10 +876,10 @@ class GameTextProcessor
               # Timestamp color (smaller range) takes priority over highlights
               @line_colors = HighlightProcessor.apply_highlights(text, [])
               @line_colors.push({
-                                  start: 0,
-                                  end: 5,
-                                  fg: 'ff0000'
-                                })
+                start: 0,
+                end: 5,
+                fg: 'ff0000'
+              })
             end
           elsif @current_stream == 'logons'
             foo = { 'joins the adventure with little fanfare.' => '007700',
@@ -893,10 +893,10 @@ class GameTextProcessor
               # Timestamp color (smaller range) takes priority over highlights
               @line_colors = HighlightProcessor.apply_highlights(text, [])
               @line_colors.push({
-                                  start: 0,
-                                  end: 5,
-                                  fg: foo[logon_type]
-                                })
+                start: 0,
+                end: 5,
+                fg: foo[logon_type]
+              })
             end
           elsif @current_stream == 'exp'
             window = @wm.stream['exp']

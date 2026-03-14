@@ -197,11 +197,11 @@ class RoomWindow < BaseWindow
 
     if preset_name && PRESET[preset_name]
       line_colors.push({
-                         start: 0,
-                         end: text.length,
-                         fg: PRESET[preset_name][0],
-                         bg: PRESET[preset_name][1]
-                       })
+        start: 0,
+        end: text.length,
+        fg: PRESET[preset_name][0],
+        bg: PRESET[preset_name][1]
+      })
     end
 
     HighlightProcessor.apply_highlights(text, line_colors)
@@ -226,11 +226,11 @@ class RoomWindow < BaseWindow
         pos = 0
         while (idx = clean_text.index(creature, pos))
           line_colors.push({
-                             start: idx,
-                             end: idx + creature.length,
-                             fg: PRESET[preset_name][0],
-                             bg: PRESET[preset_name][1]
-                           })
+            start: idx,
+            end: idx + creature.length,
+            fg: PRESET[preset_name][0],
+            bg: PRESET[preset_name][1]
+          })
           pos = idx + creature.length
         end
       end
@@ -273,12 +273,12 @@ class RoomWindow < BaseWindow
         next unless region_end > 0 && region_start < line.length
 
         current_colors.push({
-                              start: [region_start, 0].max,
-                              end: [region_end, line.length].min,
-                              fg: c[:fg],
-                              bg: c[:bg],
-                              ul: c[:ul]
-                            })
+          start: [region_start, 0].max,
+          end: [region_end, line.length].min,
+          fg: c[:fg],
+          bg: c[:bg],
+          ul: c[:ul]
+        })
       end
 
       add_line(line.rstrip, current_colors)

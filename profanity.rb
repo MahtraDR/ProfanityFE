@@ -61,6 +61,9 @@ require_relative 'lib/profanity/command_buffer'
 require_relative 'lib/profanity/window_manager'
 require_relative 'lib/profanity/settings_loader'
 require_relative 'lib/profanity/game_text_processor'
+require_relative 'lib/profanity/profanity_settings'
+require_relative 'lib/profanity/autocomplete'
+require_relative 'lib/profanity/mouse_scroll'
 
 # Initialize gag patterns with defaults (can be extended via XML config)
 GagPatterns.load_defaults
@@ -138,24 +141,42 @@ cli_default_color_id = 7
 cli_default_background_color_id = 0
 cli_use_default_colors = false
 cli_custom_colors = nil
-cli_settings_filename = File.expand_path('~/.profanity.xml')
+cli_settings_file = nil
 cli_log_dir = nil
 cli_log_file = nil
+cli_char = nil
+cli_config = nil
+cli_template = nil
+cli_no_status = false
+cli_links = false
+cli_remote_url = nil
 
 ARGV.each do |arg|
   if arg =~ /^--help|^-h|^-\?/
     puts ''
     puts "Profanity FrontEnd v#{VERSION}"
     puts ''
-    puts '   --port=<port>                      Game server port (default: 8000)'
+    puts '   --char=<name>                       Character name (for log file & process title)'
+    puts '   --config=<name>                     Config name to load (default: same as --char)'
+    puts '   --template=<file>                   Template file name (from templates/)'
+    puts '   --port=<port>                       Game server port (default: 8000)'
     puts '   --default-color-id=<id>             Default foreground color (default: 7)'
     puts '   --default-background-color-id=<id>  Default background color (default: 0)'
     puts '   --custom-colors=<on|off>            Force custom color mode'
-    puts '   --settings-file=<path>              Settings XML path (default: ~/.profanity.xml)'
+    puts '   --use-default-colors                Use terminal default colors'
+    puts '   --no-status                         Disable process title updates'
+    puts '   --links                             Enable in-game link highlighting'
+    puts '   --remote-url=<url>                  Remote game server URL'
     puts '   --log-file=<path>                   Log file path (default: profanity.log)'
     puts '   --log-dir=<dir>                     Log directory (default: current directory)'
     puts ''
     exit
+  elsif (match = arg.match(/^--char=(?<name>.+)$/))
+    cli_char = match[:name]
+  elsif (match = arg.match(/^--config=(?<name>.+)$/))
+    cli_config = match[:name]
+  elsif (match = arg.match(/^--template=(?<file>.+)$/))
+    cli_template = match[:file]
   elsif (match = arg.match(/^--port=(?<port>[0-9]+)$/))
     cli_port = match[:port].to_i
   elsif (match = arg.match(/^--default-color-id=(?<id>-?[0-9]+)$/))
@@ -168,7 +189,13 @@ ARGV.each do |arg|
     fix_setting = { 'on' => true, 'yes' => true, 'off' => false, 'no' => false }
     cli_custom_colors = fix_setting[match[:value]]
   elsif (match = arg.match(/^--settings-file=(?<file>.*?)$/))
-    cli_settings_filename = match[:file]
+    cli_settings_file = match[:file]
+  elsif arg =~ /^--no-status$/
+    cli_no_status = true
+  elsif arg =~ /^--links$/
+    cli_links = true
+  elsif (match = arg.match(/^--remote-url=(?<url>.+)$/))
+    cli_remote_url = match[:url]
   elsif (match = arg.match(/^--log-file=(?<file>.+)$/))
     cli_log_file = match[:file]
   elsif (match = arg.match(/^--log-dir=(?<dir>.+)$/))
@@ -177,20 +204,53 @@ ARGV.each do |arg|
 end
 
 PORT = cli_port
+CHAR_NAME = cli_char
 
-# Resolve log file path from CLI args (--log-file takes full precedence, --log-dir prepends to default name)
-LOG_FILE = if cli_log_file
-             File.expand_path(cli_log_file)
-           elsif cli_log_dir
-             File.join(File.expand_path(cli_log_dir), DEFAULT_LOG_FILE)
-           else
-             DEFAULT_LOG_FILE
-           end
+# Resolve settings file via ProfanitySettings (EO-compatible search order)
+# --config overrides which XML to load; defaults to --char if not specified
+SETTINGS_FILENAME = ProfanitySettings.resolve_template(
+  char: cli_config || cli_char,
+  template: cli_template,
+  settings_file: cli_settings_file,
+  app_dir: File.dirname(__FILE__)
+)
+
+# Resolve log file path via ProfanitySettings
+LOG_FILE = ProfanitySettings.resolve_log(
+  char: cli_char,
+  log_file: cli_log_file,
+  log_dir: cli_log_dir
+)
+
 DEFAULT_COLOR_ID = cli_default_color_id
 DEFAULT_BACKGROUND_COLOR_ID = cli_default_background_color_id
 Curses.use_default_colors if cli_use_default_colors
-SETTINGS_FILENAME = cli_settings_filename
 CUSTOM_COLORS = cli_custom_colors.nil? ? Curses.can_change_color? : cli_custom_colors
+
+# Update the terminal title and process name with character info.
+# Shows "CharName [prompt:room]" in terminal tabs and process listings.
+#
+# @param char_name [String] the character name
+# @param prompt_text [String] current game prompt text
+# @param room_text [String] current room name (optional)
+# @return [void]
+def update_process_title(char_name, prompt_text, room_text = '')
+  return if CHAR_NAME.nil? || NO_STATUS
+  parts = [prompt_text, room_text].reject(&:empty?).join(':')
+  title = parts.empty? ? char_name : "#{char_name} [#{parts}]"
+  Process.setproctitle(title)
+  # Terminal title (xterm/iTerm/etc.)
+  $stdout.print "\033]0;#{title}\007"
+  # Screen/tmux window name
+  $stdout.print "\ek#{title}\e\\"
+  $stdout.flush
+rescue StandardError
+  # ignore title update failures
+end
+
+NO_STATUS = cli_no_status
+
+update_process_title(CHAR_NAME || 'ProfanityFE', '')
 
 ColorManager.configure(
   default_color_id: DEFAULT_COLOR_ID,
@@ -203,13 +263,14 @@ ColorManager.configure(
 # Declared here so closures (execute_command, etc.) can capture it.
 # Assigned later after layout is loaded.
 server = nil
+blue_links = cli_links
 
 xml_escape_list = {
-  '&lt;' => '<',
-  '&gt;' => '>',
+  '&lt;'   => '<',
+  '&gt;'   => '>',
   '&quot;' => '"',
   '&apos;' => "'",
-  '&amp;' => '&'
+  '&amp;'  => '&'
 }
 
 shared_state = SharedState.new
@@ -218,6 +279,16 @@ window_mgr = WindowManager.new
 
 key_binding = {}
 key_action = {}
+
+# Mouse scroll wheel support
+write_to_client = proc { |text|
+  if (window = window_mgr.stream[MAIN_STREAM])
+    window.add_string(text, [{ fg: Autocomplete::HIGHLIGHT_COLOR, start: 0, end: text.length }])
+    cmd_buffer.refresh
+    Curses.doupdate
+  end
+}
+mouse_scroll = MouseScroll.new(key_action, write_to_client)
 
 # ========== MACRO ENGINE ==========
 
@@ -302,6 +373,8 @@ DOT_COMMAND_HELP = [
   '.resize            Recalculate window sizes for terminal',
   '.tab               List tabs (active marked with *)',
   '.tab <N|name>      Switch tab by number or name',
+  '.links             Toggle in-game link highlighting',
+  '.scrollcfg         Configure mouse scroll wheel',
   '.help              Show this help'
 ].freeze
 
@@ -350,6 +423,14 @@ execute_command = proc { |cmd|
       TabbedTextWindow.list.each { |w| w.switch_tab(arg) }
       Curses.doupdate
     end
+  elsif cmd =~ /^\.links/i
+    blue_links = !blue_links
+    if (window = window_mgr.stream[MAIN_STREAM])
+      window.add_string("* Links display: #{blue_links ? 'ON' : 'OFF'}")
+      Curses.doupdate
+    end
+  elsif cmd =~ /^\.scrollcfg/i
+    mouse_scroll.start_configuration
   elsif cmd =~ /^\.help/i
     if (window = window_mgr.stream[MAIN_STREAM])
       window.add_string('* ')
@@ -535,6 +616,10 @@ key_action['send_last_command'] = proc { send_history_command.call(1) }
 
 key_action['send_second_last_command'] = proc { send_history_command.call(2) }
 
+key_action['autocomplete'] = proc {
+  Autocomplete.complete(cmd_buffer, window_mgr.stream[MAIN_STREAM])
+}
+
 # ========== LOAD SETTINGS AND LAYOUT ==========
 
 SettingsLoader.load(SETTINGS_FILENAME, key_binding, key_action, do_macro)
@@ -552,6 +637,9 @@ rescue Errno::ECONNREFUSED, Errno::ECONNRESET, SocketError => e
   warn 'Is the game server running?'
   exit 1
 end
+
+server.puts "SET_FRONTEND_PID #{Process.pid}"
+server.flush
 
 $server_time_offset = 0.0
 
@@ -579,6 +667,12 @@ begin
 
     # Handle mouse events first
     if ch == Curses::KEY_MOUSE
+      if mouse_scroll.configuring?
+        mouse_scroll.process(ch)
+        next
+      end
+      mouse_scroll.process(ch)
+
       mouse = Curses.getmouse
       if mouse
         screen_y = mouse.y

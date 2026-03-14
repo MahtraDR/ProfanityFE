@@ -1,0 +1,147 @@
+# frozen_string_literal: true
+
+require_relative 'profanity_settings'
+
+=begin
+Configurable mouse scroll wheel support.
+Ported from elanthia-online/ProfanityFE.
+=end
+
+# Handles mouse scroll wheel events for window scrolling.
+#
+# Scroll wheel button masks vary by terminal emulator, so this class
+# supports a calibration mode (`.scrollcfg`) that detects and saves
+# the correct masks to +~/.profanity/settings.json+.
+#
+# @example
+#   mouse = MouseScroll.new(key_action, display_callback)
+#   mouse.process(ch)          # call from input loop on KEY_MOUSE
+#   mouse.start_configuration  # call from .scrollcfg command
+class MouseScroll
+  MIN_EVENT_COUNT = 20
+
+  # @param key_action [Hash<String, Proc>] the key action registry
+  # @param display_fn [Proc] callback to display messages: display_fn.call(text)
+  def initialize(key_action, display_fn)
+    @key_action = key_action
+    @display_fn = display_fn
+    @config_state = :idle
+    @listener_enabled = false
+    @button4_mask = nil
+    @button5_mask = nil
+    @bstate_counts = {}
+
+    load_settings
+  end
+
+  # Process a mouse event from the input loop.
+  # Call this when +ch == Curses::KEY_MOUSE+.
+  #
+  # @param ch [Integer] the key code (must be KEY_MOUSE)
+  # @return [void]
+  def process(ch)
+    return unless ch == Curses::KEY_MOUSE
+
+    m = Curses.getmouse
+    return unless m
+
+    bstate = m.respond_to?(:bstate) ? m.bstate : nil
+    return if bstate.nil?
+
+    if configuring?
+      configure(bstate)
+    else
+      handle_scroll(bstate)
+    end
+  rescue StandardError => e
+    begin
+      File.open(LOG_FILE, 'a') { |f| f.puts "[MouseScroll] #{e.message}" }
+    rescue StandardError
+      # ignore
+    end
+  end
+
+  # Start scroll wheel calibration mode.
+  #
+  # @return [void]
+  def start_configuration
+    if configuring?
+      reset_configuration
+      @display_fn.call('[PROFANITY] Scroll configuration cancelled')
+      return
+    end
+
+    @bstate_counts = {}
+    @config_state = :up
+    Curses.mousemask(Curses::ALL_MOUSE_EVENTS | Curses::REPORT_MOUSE_POSITION)
+    @display_fn.call('[PROFANITY] Scroll up with your mouse wheel or trackpad')
+  end
+
+  # Whether calibration is in progress.
+  #
+  # @return [Boolean]
+  def configuring?
+    @config_state != :idle
+  end
+
+  private
+
+  def load_settings
+    settings = ProfanitySettings.load_mouse_settings
+    return unless settings
+
+    @button4_mask = settings['BUTTON4_PRESSED_MASK']
+    @button5_mask = settings['BUTTON5_PRESSED_MASK']
+
+    return unless @button4_mask && @button5_mask
+
+    @listener_enabled = true
+    Curses.mousemask(@button4_mask | @button5_mask)
+  end
+
+  def reset_configuration
+    @config_state = :idle
+    @bstate_counts = {}
+  end
+
+  def configure(bstate)
+    case @config_state
+    when :up
+      @bstate_counts[bstate] = (@bstate_counts[bstate] || 0) + 1
+      return unless @bstate_counts[bstate] >= MIN_EVENT_COUNT
+
+      @button4_mask = bstate
+      @config_state = :down
+      @bstate_counts = {}
+      @display_fn.call('[PROFANITY] Scroll down with your mouse wheel or trackpad')
+    when :down
+      return if bstate == @button4_mask
+
+      @bstate_counts[bstate] = (@bstate_counts[bstate] || 0) + 1
+      return unless @bstate_counts[bstate] >= MIN_EVENT_COUNT
+
+      @button5_mask = bstate
+      @config_state = :idle
+      @bstate_counts = {}
+      @listener_enabled = true
+      Curses.mousemask(@button4_mask | @button5_mask)
+      ProfanitySettings.save_mouse_settings(@button4_mask, @button5_mask)
+      @display_fn.call('[PROFANITY] Scroll wheel configuration complete!')
+    end
+  end
+
+  def handle_scroll(bstate)
+    return unless @button4_mask && @button5_mask
+
+    unless @listener_enabled
+      Curses.mousemask(@button4_mask | @button5_mask)
+      @listener_enabled = true
+    end
+
+    if (bstate & @button4_mask).nonzero?
+      @key_action['scroll_current_window_up_one']&.call
+    elsif (bstate & @button5_mask).nonzero?
+      @key_action['scroll_current_window_down_one']&.call
+    end
+  end
+end
