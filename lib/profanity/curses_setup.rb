@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-curses_setup.rb: Curses terminal initialization for ProfanityFE.
-=end
+# curses_setup.rb: Curses terminal initialization for ProfanityFE.
 
 require 'curses'
 # NOTE: `include Curses` was removed to avoid polluting the global Object namespace.

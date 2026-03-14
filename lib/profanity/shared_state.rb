@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-shared_state.rb: Thread-safe container for cross-thread state in ProfanityFE.
-=end
+# shared_state.rb: Thread-safe container for cross-thread state in ProfanityFE.
 
 # Thread-safe container for state shared between the input thread,
 # server read thread, and timer threads.

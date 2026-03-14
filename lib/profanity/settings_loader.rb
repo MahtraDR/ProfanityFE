@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-=begin
-Parses .profanity.xml settings and populates global constants
-(HIGHLIGHT, PRESET, LAYOUT, PERC_TRANSFORMS) and gag patterns.
-=end
+# Parses .profanity.xml settings and populates global constants
+# (HIGHLIGHT, PRESET, LAYOUT, PERC_TRANSFORMS) and gag patterns.
 
 # Parses a .profanity.xml configuration file and populates global constants.
 #
@@ -41,7 +39,7 @@ module SettingsLoader
     setup_key = build_setup_key(key_action, do_macro)
 
     unless File.exist?(filename)
-      $stderr.puts "Settings file not found: #{filename}"
+      warn "Settings file not found: #{filename}"
       return
     end
 
@@ -60,7 +58,7 @@ module SettingsLoader
               r = Regexp.new(e.text)
             rescue StandardError => e_err
               r = nil
-              warn e.to_s
+              warn e
               warn e_err
             end
             HIGHLIGHT[r] = [e.attributes['fg'], e.attributes['bg'], e.attributes['ul']] if r
@@ -87,13 +85,13 @@ module SettingsLoader
           end
 
           # Presets and layouts are only loaded on initial load, not reload
-          unless reload
-            case e.name
-            when 'preset'
-              PRESET[e.attributes['id']] = [e.attributes['fg'], e.attributes['bg']]
-            when 'layout'
-              LAYOUT[e.attributes['id']] = e if e.attributes['id']
-            end
+          next if reload
+
+          case e.name
+          when 'preset'
+            PRESET[e.attributes['id']] = [e.attributes['fg'], e.attributes['bg']]
+          when 'layout'
+            LAYOUT[e.attributes['id']] = e if e.attributes['id']
           end
         end
       end
@@ -118,7 +116,7 @@ module SettingsLoader
   # @return [Proc] a proc accepting (xml_element, binding_hash) that populates bindings
   # @api private
   def build_setup_key(key_action, do_macro)
-    setup_key = proc { |xml, binding|
+    proc { |xml, binding|
       if (key = xml.attributes['id'])
         if key =~ /^[0-9]+$/
           key = key.to_i
@@ -153,6 +151,5 @@ module SettingsLoader
         end
       end
     }
-    setup_key
   end
 end

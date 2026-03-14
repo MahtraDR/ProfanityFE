@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-=begin
-Base class for all ProfanityFE window types.
-Provides shared rendering, word-wrap, scrollbar, selection, and window registry.
-=end
+# Base class for all ProfanityFE window types.
+# Provides shared rendering, word-wrap, scrollbar, selection, and window registry.
 
 # Base class for all ProfanityFE windows.
 #
@@ -13,13 +11,13 @@ Provides shared rendering, word-wrap, scrollbar, selection, and window registry.
 # class registry used for hit-testing ({.find_window_at}).
 class BaseWindow < Curses::Window
   # Bold vertical line character used for the scrollbar when the window is active.
-  ACTIVE_SCROLLBAR_CHAR = "\u2503"  # bold vertical line
+  ACTIVE_SCROLLBAR_CHAR = "\u2503" # bold vertical line
 
   # Plain pipe character used for the scrollbar when the window is inactive.
   INACTIVE_SCROLLBAR_CHAR = '|'
 
   # Right-pointing triangle shown at the top of the scrollbar for the active window.
-  ACTIVE_INDICATOR = "\u25B6"       # right-pointing triangle
+  ACTIVE_INDICATOR = "\u25B6" # right-pointing triangle
 
   # @return [Hash, nil] layout definition for this window
   attr_accessor :layout
@@ -163,7 +161,8 @@ class BaseWindow < Curses::Window
 
     scrollbar_char = @active ? ACTIVE_SCROLLBAR_CHAR : INACTIVE_SCROLLBAR_CHAR
     last_scrollbar_pos = @scrollbar_pos
-    @scrollbar_pos = visible_height - ((buffer_pos / [(buffer_length - visible_height), 1].max.to_f) * (visible_height - 1)).round - 1
+    @scrollbar_pos = visible_height - ((buffer_pos / [(buffer_length - visible_height),
+                                                      1].max.to_f) * (visible_height - 1)).round - 1
 
     if last_scrollbar_pos
       unless last_scrollbar_pos == @scrollbar_pos

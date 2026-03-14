@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Main scrollable text buffer window with word wrap, timestamps, and selection.
-=end
+# Main scrollable text buffer window with word wrap, timestamps, and selection.
 
 # Scrollable text buffer window.
 #
@@ -51,9 +49,7 @@ class TextWindow < BaseWindow
   # @param string_colors [Array<Hash>] color region descriptors
   # @return [void]
   def add_string(string, string_colors = [])
-    if @time_stamp && string && !string.chomp.empty?
-      string += format_timestamp
-    end
+    string += format_timestamp if @time_stamp && string && !string.chomp.empty?
     wrap_text(string, maxx - 1, string_colors, indent: @indent_word_wrap) do |line, line_colors|
       @buffer.unshift([line, line_colors])
       @buffer.pop if @buffer.length > @max_buffer_size
@@ -160,15 +156,15 @@ class TextWindow < BaseWindow
       next if buffer_idx >= @buffer.length || buffer_idx < 0
 
       line_text = @buffer[buffer_idx][0] || ''
-      if y == start_y && y == end_y
-        lines << line_text[start_x...end_x]
-      elsif y == start_y
-        lines << line_text[start_x..-1]
-      elsif y == end_y
-        lines << line_text[0...end_x]
-      else
-        lines << line_text
-      end
+      lines << if y == start_y && y == end_y
+                 line_text[start_x...end_x]
+               elsif y == start_y
+                 line_text[start_x..-1]
+               elsif y == end_y
+                 line_text[0...end_x]
+               else
+                 line_text
+               end
     end
     lines.join("\n")
   end
@@ -220,8 +216,8 @@ class TextWindow < BaseWindow
   def draw_line_with_selection(y, line_text, line_colors, start_y, start_x, end_y, end_x)
     return if line_text.nil?
 
-    sel_start = (y == start_y) ? start_x : 0
-    sel_end = (y == end_y) ? end_x : line_text.length
+    sel_start = y == start_y ? start_x : 0
+    sel_end = y == end_y ? end_x : line_text.length
 
     # Draw pre-selection text normally
     if sel_start > 0
@@ -241,14 +237,14 @@ class TextWindow < BaseWindow
     end
 
     # Draw post-selection text normally
-    if sel_end < line_text.length
-      post_text = line_text[sel_end..-1]
-      post_colors = line_colors.map do |h|
-        new_start = [h[:start] - sel_end, 0].max
-        new_end = h[:end] - sel_end
-        { start: new_start, end: new_end, fg: h[:fg], bg: h[:bg], ul: h[:ul] }
-      end.select { |h| h[:end] > 0 && h[:end] > h[:start] }
-      add_line(post_text, post_colors)
-    end
+    return unless sel_end < line_text.length
+
+    post_text = line_text[sel_end..-1]
+    post_colors = line_colors.map do |h|
+      new_start = [h[:start] - sel_end, 0].max
+      new_end = h[:end] - sel_end
+      { start: new_start, end: new_end, fg: h[:fg], bg: h[:bg], ul: h[:ul] }
+    end.select { |h| h[:end] > 0 && h[:end] > h[:start] }
+    add_line(post_text, post_colors)
   end
 end

@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Dedicated room display with atomic updates and creature highlighting.
-=end
+# Dedicated room display with atomic updates and creature highlighting.
 
 # Room information display window.
 #

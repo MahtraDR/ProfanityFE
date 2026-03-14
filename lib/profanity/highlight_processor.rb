@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-=begin
-highlight_processor.rb: Centralized highlight pattern application and colored
-text rendering for all ProfanityFE windows.
-=end
+# highlight_processor.rb: Centralized highlight pattern application and colored
+# text rendering for all ProfanityFE windows.
 
 # Centralized highlight processing for all windows.
 # Applies HIGHLIGHT regex patterns to text and renders colored text segments

@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-color_manager.rb: Curses color and color pair management for ProfanityFE.
-=end
+# color_manager.rb: Curses color and color pair management for ProfanityFE.
 
 # Manages curses color allocation and color pair caching.
 # Supports both custom colors (terminal reprogramming via init_color) and

@@ -66,7 +66,11 @@ require_relative 'lib/profanity/game_text_processor'
 GagPatterns.load_defaults
 
 # Ensure terminal is restored on any exit path (graceful shutdown)
-at_exit { Curses.close_screen rescue nil }
+at_exit do
+  Curses.close_screen
+rescue StandardError
+  nil
+end
 
 # Parse fg/bg color attributes from XML layout element (DRY helper)
 def parse_color_attrs(element, attr_name)
@@ -100,7 +104,7 @@ end
 # Only allows: integers, +, -, *, /, (), and whitespace
 def safe_eval_arithmetic(expr)
   normalized = expr.gsub(/\s+/, '')
-  unless normalized.match?(/\A[\d+\-*\/()]+\z/)
+  unless normalized.match?(%r{\A[\d+\-*/()]+\z})
     warn "Invalid layout expression (unsafe characters): #{expr}"
     return 0
   end
@@ -201,11 +205,11 @@ ColorManager.configure(
 server = nil
 
 xml_escape_list = {
-  '&lt;'   => '<',
-  '&gt;'   => '>',
+  '&lt;' => '<',
+  '&gt;' => '>',
   '&quot;' => '"',
   '&apos;' => "'",
-  '&amp;'  => '&'
+  '&amp;' => '&'
 }
 
 shared_state = SharedState.new
@@ -298,7 +302,7 @@ DOT_COMMAND_HELP = [
   '.resize            Recalculate window sizes for terminal',
   '.tab               List tabs (active marked with *)',
   '.tab <N|name>      Switch tab by number or name',
-  '.help              Show this help',
+  '.help              Show this help'
 ].freeze
 
 execute_command = proc { |cmd|
@@ -334,7 +338,9 @@ execute_command = proc { |cmd|
     elsif arg.nil? || arg.empty?
       # List all tabs with active marked by *
       TabbedTextWindow.list.each do |win|
-        tabs_info = win.tabs.keys.each_with_index.map { |name, i| "#{i + 1}:#{name}#{name == win.active_tab ? '*' : ''}" }.join(' ')
+        tabs_info = win.tabs.keys.each_with_index.map do |name, i|
+          "#{i + 1}:#{name}#{name == win.active_tab ? '*' : ''}"
+        end.join(' ')
         window_mgr.stream[MAIN_STREAM]&.add_string("* Tabs: #{tabs_info}")
       end
     elsif arg =~ /^\d+$/
@@ -542,8 +548,8 @@ TextWindow.list.each { |w| w.maxy.times { w.add_string "\n".dup } }
 begin
   server = TCPSocket.open('127.0.0.1', PORT)
 rescue Errno::ECONNREFUSED, Errno::ECONNRESET, SocketError => e
-  $stderr.puts "Failed to connect to game server on port #{PORT}: #{e.message}"
-  $stderr.puts "Is the game server running?"
+  warn "Failed to connect to game server on port #{PORT}: #{e.message}"
+  warn 'Is the game server running?'
   exit 1
 end
 
@@ -582,7 +588,7 @@ begin
         begin
           File.open(LOG_FILE, 'a') { |f| f.puts "[Mouse] bstate=#{bstate} at (#{screen_y},#{screen_x})" }
         rescue StandardError
-          $stderr.puts "[Mouse] bstate=#{bstate} at (#{screen_y},#{screen_x})"
+          warn "[Mouse] bstate=#{bstate} at (#{screen_y},#{screen_x})"
         end
 
         if (bstate & Curses::BUTTON1_PRESSED) != 0
@@ -651,8 +657,8 @@ rescue StandardError => e
       f.puts e.backtrace[0...BACKTRACE_LIMIT]
     end
   rescue StandardError
-    $stderr.puts e
-    $stderr.puts e.backtrace[0...BACKTRACE_LIMIT]
+    warn e
+    warn e.backtrace[0...BACKTRACE_LIMIT]
   end
 ensure
   begin

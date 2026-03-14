@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Status indicator display window (kneeling, hidden, bleeding, etc.).
-=end
+# Status indicator display window (kneeling, hidden, bleeding, etc.).
 
 # Single-label status indicator window.
 #
@@ -74,17 +72,15 @@ class IndicatorWindow < BaseWindow
       base_color = { start: 0, end: @label.length, fg: base_fg, bg: base_bg }
       colors = [base_color] + @label_colors
       add_line(@label, colors)
-    else
+    elsif @value
       # Original single-color behavior
-      if @value
-        if @value.is_a?(Integer)
-          attron(Curses.color_pair(get_color_pair_id(@fg[@value], @bg[@value])) | Curses::A_NORMAL) { addstr @label }
-        else
-          attron(Curses.color_pair(get_color_pair_id(@fg[1], @bg[1])) | Curses::A_NORMAL) { addstr @label }
-        end
+      if @value.is_a?(Integer)
+        attron(Curses.color_pair(get_color_pair_id(@fg[@value], @bg[@value])) | Curses::A_NORMAL) { addstr @label }
       else
-        attron(Curses.color_pair(get_color_pair_id(@fg[0], @bg[0])) | Curses::A_NORMAL) { addstr @label }
+        attron(Curses.color_pair(get_color_pair_id(@fg[1], @bg[1])) | Curses::A_NORMAL) { addstr @label }
       end
+    else
+      attron(Curses.color_pair(get_color_pair_id(@fg[0], @bg[0])) | Curses::A_NORMAL) { addstr @label }
     end
     noutrefresh
     true

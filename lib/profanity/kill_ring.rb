@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-kill_ring.rb: Readline-style kill ring (cut/paste buffer) for ProfanityFE.
-=end
+# kill_ring.rb: Readline-style kill ring (cut/paste buffer) for ProfanityFE.
 
 # Readline-style kill ring for cut/paste operations.
 #
@@ -35,10 +33,10 @@ class KillRing
   # @param current_pos [Integer] current cursor position
   # @return [void]
   def before(current_text, current_pos)
-    if @last_text != current_text || @last_pos != current_pos
-      @buffer = ''
-      @original = current_text
-    end
+    return unless @last_text != current_text || @last_pos != current_pos
+
+    @buffer = ''
+    @original = current_text
   end
 
   # Call after a kill operation. Snapshots the current state so the next
@@ -56,7 +54,5 @@ class KillRing
   # Used by kill_line to restore the entire line on yank.
   #
   # @return [String] original text before any kills in this sequence
-  def original
-    @original
-  end
+  attr_reader :original
 end

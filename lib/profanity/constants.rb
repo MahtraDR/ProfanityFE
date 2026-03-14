@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-constants.rb: Global mutable constants and synchronization primitives for ProfanityFE.
-=end
+# constants.rb: Global mutable constants and synchronization primitives for ProfanityFE.
 
 # Global constants for ProfanityFE
 #

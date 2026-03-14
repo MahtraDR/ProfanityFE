@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Multi-tab text window sharing one display area with tab bar and keyboard switching.
-=end
+# Multi-tab text window sharing one display area with tab bar and keyboard switching.
 
 # Multi-tab text window.
 #
@@ -131,7 +129,7 @@ class TabbedTextWindow < BaseWindow
     x_pos = 0
 
     tab_names.each_with_index do |name, idx|
-      activity = (@tab_activity[name] && name != @active_tab) ? '*' : ''
+      activity = @tab_activity[name] && name != @active_tab ? '*' : ''
       label = " #{idx + 1}:#{name}#{activity} "
 
       if name == @active_tab
@@ -195,9 +193,7 @@ class TabbedTextWindow < BaseWindow
     return unless @tabs.key?(tab_name)
     return if string.nil? || string.chomp.empty?
 
-    if @time_stamp
-      string += format_timestamp
-    end
+    string += format_timestamp if @time_stamp
 
     content_width = maxx - 1
     tab_buffer = @tabs[tab_name]
@@ -218,9 +214,7 @@ class TabbedTextWindow < BaseWindow
         else
           @buffer_positions[tab_name] += 1
           tab_buffer_pos = @buffer_positions[tab_name]
-          if @buffer_positions[tab_name] > (@max_buffer_size - content_height)
-            scrl(1)
-          end
+          scrl(1) if @buffer_positions[tab_name] > (@max_buffer_size - content_height)
           update_scrollbar
         end
       else
@@ -261,7 +255,9 @@ class TabbedTextWindow < BaseWindow
     ch = content_height
 
     if scroll_num < 0
-      scroll_num = 0 - (tab_buffer.length - tab_buffer_pos - ch) if (tab_buffer_pos + ch + scroll_num.abs) >= tab_buffer.length
+      if (tab_buffer_pos + ch + scroll_num.abs) >= tab_buffer.length
+        scroll_num = 0 - (tab_buffer.length - tab_buffer_pos - ch)
+      end
       if scroll_num < 0
         @buffer_positions[@active_tab] += scroll_num.abs
         setpos(TAB_BAR_HEIGHT, 0)
@@ -369,15 +365,15 @@ class TabbedTextWindow < BaseWindow
       next if buffer_idx >= tab_buffer.length || buffer_idx < 0
 
       line_text = tab_buffer[buffer_idx][0] || ''
-      if y == start_y && y == end_y
-        lines << line_text[start_x...end_x]
-      elsif y == start_y
-        lines << line_text[start_x..-1]
-      elsif y == end_y
-        lines << line_text[0...end_x]
-      else
-        lines << line_text
-      end
+      lines << if y == start_y && y == end_y
+                 line_text[start_x...end_x]
+               elsif y == start_y
+                 line_text[start_x..-1]
+               elsif y == end_y
+                 line_text[0...end_x]
+               else
+                 line_text
+               end
     end
     lines.join("\n")
   end

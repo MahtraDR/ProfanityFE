@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-=begin
-gag_patterns.rb: Gag pattern management for filtering unwanted text from display.
-Patterns loaded from XML config via <gag> and <combat_gag> elements.
-=end
+# gag_patterns.rb: Gag pattern management for filtering unwanted text from display.
+# Patterns loaded from XML config via <gag> and <combat_gag> elements.
 
 # Manages gag patterns that filter unwanted text from the display.
 # Patterns can be loaded from the XML config file or added programmatically.

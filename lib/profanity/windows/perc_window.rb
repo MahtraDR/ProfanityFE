@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Active spells/effects display with duration-based sorting.
-=end
+# Active spells/effects display with duration-based sorting.
 
 # Active spells and effects display window.
 #

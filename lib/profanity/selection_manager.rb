@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-=begin
-selection_manager.rb: Mouse text selection and clipboard operations for ProfanityFE.
-Currently dormant — mouse tracking is disabled (breaks terminal copy/paste).
-=end
+# selection_manager.rb: Mouse text selection and clipboard operations for ProfanityFE.
+# Currently dormant — mouse tracking is disabled (breaks terminal copy/paste).
 
 # Manages mouse text selection state and clipboard operations
 # GNU Screen compatible - uses external clipboard commands (pbcopy/xclip/wl-copy)

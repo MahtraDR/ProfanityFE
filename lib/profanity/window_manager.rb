@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-=begin
-Manages Curses window creation, layout loading, and handler hash access
-for the profanity terminal UI.
-=end
+# Manages Curses window creation, layout loading, and handler hash access
+# for the profanity terminal UI.
 
 # Manages window creation, layout loading, and handler hash access.
 #
@@ -35,41 +33,31 @@ class WindowManager
   #
   # @return [Hash<String, TextWindow>] the stream handler hash (not a copy)
   # @note Returns the live hash, not a copy. Mutations affect routing.
-  def stream
-    @stream
-  end
+  attr_reader :stream
 
   # Returns the live indicator handler hash.
   #
   # @return [Hash<String, IndicatorWindow>] the indicator handler hash (not a copy)
   # @note Returns the live hash, not a copy. Mutations affect indicator display.
-  def indicator
-    @indicator
-  end
+  attr_reader :indicator
 
   # Returns the live progress handler hash.
   #
   # @return [Hash<String, ProgressWindow>] the progress handler hash (not a copy)
   # @note Returns the live hash, not a copy. Mutations affect progress display.
-  def progress
-    @progress
-  end
+  attr_reader :progress
 
   # Returns the live countdown handler hash.
   #
   # @return [Hash<String, CountdownWindow>] the countdown handler hash (not a copy)
   # @note Returns the live hash, not a copy. Mutations affect countdown display.
-  def countdown
-    @countdown
-  end
+  attr_reader :countdown
 
   # Returns the live room handler hash.
   #
   # @return [Hash<String, RoomWindow>] the room handler hash (not a copy)
   # @note Returns the live hash, not a copy. Mutations affect room display.
-  def room
-    @room
-  end
+  attr_reader :room
 
   # Evaluate a layout dimension string to an integer, substituting
   # Curses terminal dimensions for the tokens "lines" and "cols".
@@ -94,7 +82,7 @@ class WindowManager
   def load_layout(layout_id)
     xml = LAYOUT[layout_id]
     unless xml
-      $stderr.puts "Warning: layout '#{layout_id}' not found in LAYOUT (available: #{LAYOUT.keys.join(', ')})"
+      warn "Warning: layout '#{layout_id}' not found in LAYOUT (available: #{LAYOUT.keys.join(', ')})"
       return
     end
 
@@ -112,8 +100,6 @@ class WindowManager
 
       previous_countdown = @countdown
       @countdown = {}
-
-      previous_room = @room
       @room = {}
 
       xml.elements.each do |e|
@@ -153,9 +139,9 @@ class WindowManager
 
         when 'text'
           if width > 1
-            if e.attributes['value'] && (window = previous_stream[previous_stream.keys.find { |key|
-                                                                     e.attributes['value'].split(',').include?(key)
-                                                                   }])
+            if e.attributes['value'] && (window = previous_stream[previous_stream.keys.find do |key|
+              e.attributes['value'].split(',').include?(key)
+            end])
               previous_stream[e.attributes['value']] = nil
               old_windows.delete(window)
             else
@@ -237,7 +223,8 @@ class WindowManager
 
         when 'command'
           @command_window ||= Curses::Window.new(height, width, top, left)
-          @command_window_layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'], e.attributes['left']]
+          @command_window_layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'],
+                                    e.attributes['left']]
           @command_window.scrollok(false)
           @command_window.keypad(true)
         end
@@ -271,7 +258,7 @@ class WindowManager
   #
   # @param cmd_buffer [CommandBuffer] the command-line input buffer, used to refresh the command window cursor position
   # @return [void]
-  def resize(cmd_buffer)
+  def resize(_cmd_buffer)
     window = Curses::Window.new(0, 0, 0, 0)
     window.refresh
     window.close

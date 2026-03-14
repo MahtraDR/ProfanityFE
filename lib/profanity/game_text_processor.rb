@@ -2,10 +2,8 @@
 
 require_relative 'spell_abbreviations'
 
-=begin
-Processes game server output in a dedicated thread, handling XML tag parsing,
-stream routing, room data assembly, spell abbreviation, and UI updates.
-=end
+# Processes game server output in a dedicated thread, handling XML tag parsing,
+# stream routing, room data assembly, spell abbreviation, and UI updates.
 
 # Processes all game text received from the server read thread.
 #
@@ -67,7 +65,7 @@ class GameTextProcessor
     @last_was_movement = false
 
     # Room data tracking for RoomWindow
-    @room_capture_mode = nil  # :title, :desc, or nil
+    @room_capture_mode = nil # :title, :desc, or nil
     @room_pending_title = nil
     @room_pending_title_colors = nil
     @room_pending_desc = nil
@@ -77,7 +75,7 @@ class GameTextProcessor
     @room_pending_players = nil
     @room_pending_exits = nil
     @room_pending_number = nil
-    @current_raw_line = nil  # Raw line with XML tags preserved for room object extraction
+    @current_raw_line = nil # Raw line with XML tags preserved for room object extraction
   end
 
   # Main processing loop. Blocks on +server.gets+ reading lines from the
@@ -95,11 +93,11 @@ class GameTextProcessor
 
       # File.write("combatlog.txt", line.inspect + "\n", mode: "a")
 
-      if line =~ /^<popBold\/>/
+      if line =~ %r{^<popBold/>}
         @bold_next_line = false
       elsif @bold_next_line == true
         line = "<pushBold/>#{line.chomp}<popBold/>\n"
-      elsif line =~ /<pushBold\/>\r\n$/
+      elsif line =~ %r{<pushBold/>\r\n$}
         @bold_next_line = true
       end
 
@@ -110,7 +108,7 @@ class GameTextProcessor
         # File.write("gaglog.txt", line.inspect + "\n", mode: "a")
         # line = nil
         next
-      # elsif line.match(/\w+ offers you .* almanac .* ACCEPT to accept the offer or DECLINE to decline it\./)
+        # elsif line.match(/\w+ offers you .* almanac .* ACCEPT to accept the offer or DECLINE to decline it\./)
         # Saelia offers you an encyclopedic almanac carefully bound with a shadowleaf cover.  Enter ACCEPT to accept the offer or DECLINE to decline it.  The offer will expire in 30 seconds.
         # server.puts("accept\nawake\n")
       elsif line.empty?
@@ -171,7 +169,7 @@ class GameTextProcessor
           line.slice!(start_pos, xml.length)
 
           if xml =~ %r{<popStream id="combat" />}
-          # File.write("poplog.txt", line.inspect + "\n", mode: "a")
+            # File.write("poplog.txt", line.inspect + "\n", mode: "a")
             @combat_next_line = false
           end
 
@@ -222,23 +220,24 @@ class GameTextProcessor
               window.update
               @need_update = true
               Thread.new do
-                begin
+                sleep 0.15
+                while (@wm.countdown['roundtime'].end_time == temp_roundtime_end) and (@wm.countdown['roundtime'].value > 0)
                   sleep 0.15
-                  while (@wm.countdown['roundtime'].end_time == temp_roundtime_end) and (@wm.countdown['roundtime'].value > 0)
-                    sleep 0.15
-                    if @wm.countdown['roundtime'].update
-                      CURSES_MUTEX.synchronize do
-                        @cmd_buffer.window&.noutrefresh
-                        Curses.doupdate
-                      end
-                    end
+                  next unless @wm.countdown['roundtime'].update
+
+                  CURSES_MUTEX.synchronize do
+                    @cmd_buffer.window&.noutrefresh
+                    Curses.doupdate
                   end
-                rescue StandardError => e
-                  begin
-                    File.open(LOG_FILE, 'a') { |f| f.puts "[roundtime thread] #{e}"; f.puts e.backtrace[0...BACKTRACE_LIMIT] }
-                  rescue StandardError
-                    $stderr.puts "[roundtime thread] #{e}"
+                end
+              rescue StandardError => e
+                begin
+                  File.open(LOG_FILE, 'a') do |f|
+                    f.puts "[roundtime thread] #{e}"
+                    f.puts e.backtrace[0...BACKTRACE_LIMIT]
                   end
+                rescue StandardError
+                  warn "[roundtime thread] #{e}"
                 end
               end
             end
@@ -249,22 +248,23 @@ class GameTextProcessor
               window.update
               @need_update = true
               Thread.new do
+                while (@wm.countdown['roundtime'].secondary_end_time == temp_casttime_end) and (@wm.countdown['roundtime'].secondary_value > 0)
+                  sleep 0.15
+                  next unless @wm.countdown['roundtime'].update
+
+                  CURSES_MUTEX.synchronize do
+                    @cmd_buffer.window&.noutrefresh
+                    Curses.doupdate
+                  end
+                end
+              rescue StandardError => e
                 begin
-                  while (@wm.countdown['roundtime'].secondary_end_time == temp_casttime_end) and (@wm.countdown['roundtime'].secondary_value > 0)
-                    sleep 0.15
-                    if @wm.countdown['roundtime'].update
-                      CURSES_MUTEX.synchronize do
-                        @cmd_buffer.window&.noutrefresh
-                        Curses.doupdate
-                      end
-                    end
+                  File.open(LOG_FILE, 'a') do |f|
+                    f.puts "[casttime thread] #{e}"
+                    f.puts e.backtrace[0...BACKTRACE_LIMIT]
                   end
-                rescue StandardError => e
-                  begin
-                    File.open(LOG_FILE, 'a') { |f| f.puts "[casttime thread] #{e}"; f.puts e.backtrace[0...BACKTRACE_LIMIT] }
-                  rescue StandardError
-                    $stderr.puts "[casttime thread] #{e}"
-                  end
+                rescue StandardError
+                  warn "[casttime thread] #{e}"
                 end
               end
             end
@@ -331,9 +331,9 @@ class GameTextProcessor
             end
           elsif xml =~ /^<color/
             h = { start: start_pos }
-            h[:fg] = fg_match[:val].downcase if (fg_match = xml.match(/\sfg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
-            h[:bg] = bg_match[:val].downcase if (bg_match = xml.match(/\sbg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
-            h[:ul] = ul_match[:val].downcase if (ul_match = xml.match(/\sul=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
+            h[:fg] = fg_match[:val].downcase if xml.match(/\sfg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/)
+            h[:bg] = bg_match[:val].downcase if xml.match(/\sbg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/)
+            h[:ul] = ul_match[:val].downcase if xml.match(/\sul=(?<q>'|")(?<val>.*?)\k<q>[\s>]/)
             @open_color.push(h)
           elsif xml == '</color>'
             if (h = @open_color.pop)
@@ -367,13 +367,13 @@ class GameTextProcessor
             end
           elsif @combat_next_line && !line.empty?
             # line = "<pushStream id=\"combat\" />#{line.chomp}"
-            @current_stream = "combat"
+            @current_stream = 'combat'
             # File.write("combatnextlog.txt", line.inspect + "\n", mode: "a")
             game_text = line.slice!(0, start_pos)
             handle_game_text(game_text)
           elsif line =~ %r{^<pushStream id="combat" />}
             # File.write("pushlog.txt", line.inspect + "\n", mode: "a")
-            @current_stream = "combat"
+            @current_stream = 'combat'
             game_text = line.slice!(0, start_pos)
             handle_game_text(game_text)
             @combat_next_line = true
@@ -406,9 +406,9 @@ class GameTextProcessor
             @wm.stream['percWindow'].clear_spells if @wm.stream['percWindow']
           elsif xml =~ /^<progressBar/
             nil
-          elsif xml =~ %r{<d cmd='get}
+          elsif xml =~ /<d cmd='get/
             # contents = xml.scan(/'([^']*)'/)[0]
-            contents = xml[/'([^']*)'/,1]
+            contents = xml[/'([^']*)'/, 1]
             # File.open('profanitya.log', 'a') do |f|
             #   f.puts("TestXML: #{contents}")
             # end
@@ -481,8 +481,8 @@ class GameTextProcessor
         f.puts e.backtrace[0...BACKTRACE_LIMIT]
       end
     rescue StandardError
-      $stderr.puts e
-      $stderr.puts e.backtrace[0...BACKTRACE_LIMIT]
+      warn e
+      warn e.backtrace[0...BACKTRACE_LIMIT]
     end
     exit
   end
@@ -513,22 +513,23 @@ class GameTextProcessor
       window.end_time = temp_stun_end
       window.update
       Thread.new do
+        while (window.end_time == temp_stun_end) && (window.value > 0)
+          sleep 0.15
+          next unless window.update
+
+          CURSES_MUTEX.synchronize do
+            @cmd_buffer.window&.noutrefresh
+            Curses.doupdate
+          end
+        end
+      rescue StandardError => e
         begin
-          while (window.end_time == temp_stun_end) && (window.value > 0)
-            sleep 0.15
-            if window.update
-              CURSES_MUTEX.synchronize do
-                @cmd_buffer.window&.noutrefresh
-                Curses.doupdate
-              end
-            end
+          File.open(LOG_FILE, 'a') do |f|
+            f.puts "[stun thread] #{e}"
+            f.puts e.backtrace[0...BACKTRACE_LIMIT]
           end
-        rescue StandardError => e
-          begin
-            File.open(LOG_FILE, 'a') { |f| f.puts "[stun thread] #{e}"; f.puts e.backtrace[0...BACKTRACE_LIMIT] }
-          rescue StandardError
-            $stderr.puts "[stun thread] #{e}"
-          end
+        rescue StandardError
+          warn "[stun thread] #{e}"
         end
       end
     end
@@ -584,11 +585,11 @@ class GameTextProcessor
       if text =~ /^\s*You also see\b/
         # Extract from raw line to preserve <pushBold/> tags for RoomWindow creature highlighting
         # Strip </component> tag which may be at end of raw line
-        if @current_raw_line && (match = @current_raw_line.match(/You also see\b.*/))
-          @room_pending_objects = match[0].gsub(%r{</component>}, '').strip
-        else
-          @room_pending_objects = text.strip
-        end
+        @room_pending_objects = if @current_raw_line && (match = @current_raw_line.match(/You also see\b.*/))
+                                  match[0].gsub(%r{</component>}, '').strip
+                                else
+                                  text.strip
+                                end
         @room_pending_objects_colors = @line_colors.dup
         room_data_captured = true
       end
@@ -602,7 +603,7 @@ class GameTextProcessor
       # Detect "Obvious paths:", "Obvious exits:", or "Room Exits:" for exits
       if text =~ /^(?:Obvious (?:paths|exits)|Room Exits):/
         # Strip <d> tags from exits
-        @room_pending_exits = text.gsub(/<\/?d>/, '').strip
+        @room_pending_exits = text.gsub(%r{</?d>}, '').strip
         room_data_captured = true
         # Trigger room render since exits are typically last
         # Only update if we have pending data (avoid double-updates clearing data)
@@ -675,8 +676,8 @@ class GameTextProcessor
     #   text.gsub!("</b>", "<popBold/>")
     # end
     # [custom/t2: ***STATUS*** EXECUTE fill-pouch]
-    if text =~ /^\[(?:custom\/)?\w+: \*\*\*STATUS\*\*\*\s(?!\d+).*/
-      note = text.gsub(/(\[|\]|\*\*\*STATUS\*\*\* |EXECUTE |custom\/)/, '')
+    if text =~ %r{^\[(?:custom/)?\w+: \*\*\*STATUS\*\*\*\s(?!\d+).*}
+      note = text.gsub(%r{(\[|\]|\*\*\*STATUS\*\*\* |EXECUTE |custom/)}, '')
     # elsif text =~ /<[^>]+>/
     #   text = ""
     elsif text =~ /Auctioneer Endlar bangs his gavel and yells, "Bidding is now open/
@@ -694,12 +695,12 @@ class GameTextProcessor
     elsif (match = text.match(/contains a complete description of the (?<spell>.*) spell/))
       note = "Scroll spell: #{match[:spell]}"
     elsif text =~ /^You raise the bead up, and a black glow surrounds it/
-      note = "Focus effect started."
+      note = 'Focus effect started.'
     elsif text =~ /^The glow slowly fades away from around you/
-      note = "Focus effect ended."
+      note = 'Focus effect ended.'
     elsif (match = text.match(/(?<info>Spent .* looting \d+ boxes.)/))
       note = match[:info]
-    elsif (match = text.match(/(?<info>\w+\s?\w*:\s+\d+\s\d+\.\d+%\s\w+\s?\w*\s+\(\d+\/34\))/))
+    elsif (match = text.match(%r{(?<info>\w+\s?\w*:\s+\d+\s\d+\.\d+%\s\w+\s?\w*\s+\(\d+/34\))}))
       note = match[:info]
     elsif text =~ /(?:Character|Longitem)\s+accepting from is/
       note = text
@@ -806,17 +807,17 @@ class GameTextProcessor
             # Store pending instead of updating directly to avoid duplicates
             # Use raw line to preserve <pushBold/> tags for creature highlighting
             # Strip </component> tag which may be at end of raw line
-            if @current_raw_line && !@current_raw_line.empty?
-              @room_pending_objects = @current_raw_line.gsub(%r{</component>}, '').strip
-            else
-              @room_pending_objects = text.strip
-            end
+            @room_pending_objects = if @current_raw_line && !@current_raw_line.empty?
+                                      @current_raw_line.gsub(%r{</component>}, '').strip
+                                    else
+                                      text.strip
+                                    end
           when 'room players'
             @room_pending_players = text.strip
             # Also update the indicator if present (fall through below)
           when 'room exits'
             # Trigger batch update since exits are last
-            @room_pending_exits = text.gsub(/<\/?d>/, '').strip
+            @room_pending_exits = text.gsub(%r{</?d>}, '').strip
             window.update_title(@room_pending_title || '')
             window.update_desc(@room_pending_desc || '')
             window.update_objects(@room_pending_objects || '')
@@ -866,19 +867,19 @@ class GameTextProcessor
             if (death_match = text.match(/^\s\*\s(?:A fiery phoenix soars into the heavens as\s)?(?<name>[A-Z][a-z]+)(?: was just struck down.*| just disintegrated!| was lost to the Plane of Exile!|'s spirit arises from the ashes of death.| was smote by \w+!)/))
               name = death_match[:name]
               timestamp = Time.now.strftime('%H:%M')
-              if text.match?(/A fiery phoenix soars into the heavens as/)
-                text = "#{timestamp} #{name} MF"
-              else
-                text = "#{timestamp} #{name}"
-              end
+              text = if text.match?(/A fiery phoenix soars into the heavens as/)
+                       "#{timestamp} #{name} MF"
+                     else
+                       "#{timestamp} #{name}"
+                     end
               # Apply highlights to reformatted text, then add timestamp color
               # Timestamp color (smaller range) takes priority over highlights
               @line_colors = HighlightProcessor.apply_highlights(text, [])
               @line_colors.push({
-                start: 0,
-                end: 5,
-                fg: 'ff0000'
-              })
+                                  start: 0,
+                                  end: 5,
+                                  fg: 'ff0000'
+                                })
             end
           elsif @current_stream == 'logons'
             foo = { 'joins the adventure with little fanfare.' => '007700',
@@ -892,10 +893,10 @@ class GameTextProcessor
               # Timestamp color (smaller range) takes priority over highlights
               @line_colors = HighlightProcessor.apply_highlights(text, [])
               @line_colors.push({
-                start: 0,
-                end: 5,
-                fg: foo[logon_type]
-              })
+                                  start: 0,
+                                  end: 5,
+                                  fg: foo[logon_type]
+                                })
             end
           elsif @current_stream == 'exp'
             window = @wm.stream['exp']
@@ -914,7 +915,7 @@ class GameTextProcessor
               text.sub!(/^#{spell_name}/, DR_ALL_SPELLS[spell_name.strip]) if DR_ALL_SPELLS.include?(spell_name.strip)
             end
 
-            text.gsub!(/  /,' ')
+            text.gsub!(/  /, ' ')
             text.strip!
 
             # Apply highlight patterns to percWindow text
@@ -922,7 +923,7 @@ class GameTextProcessor
 
             if PRESET[@current_stream]
               @line_colors.push(start: 0, fg: PRESET[@current_stream][0], bg: PRESET[@current_stream][1],
-                               end: text.length)
+                                end: text.length)
             end
             # window.add_string(text, @line_colors)
             # @need_update = true
@@ -937,7 +938,7 @@ class GameTextProcessor
           if (window = @wm.stream[MAIN_STREAM])
             if PRESET[@current_stream]
               @line_colors.push(start: 0, fg: PRESET[@current_stream][0], bg: PRESET[@current_stream][1],
-                               end: text.length)
+                                end: text.length)
             end
             unless text.empty?
               # Detect movement in stream content too
@@ -947,7 +948,7 @@ class GameTextProcessor
                 @state.need_prompt = false
                 add_prompt(window, @state.prompt_text)
               elsif @state.need_prompt
-                @state.need_prompt = false  # Consume but don't display after movement
+                @state.need_prompt = false # Consume but don't display after movement
               end
               window.route_string(text, @line_colors, @current_stream)
               @need_update = true
@@ -967,7 +968,7 @@ class GameTextProcessor
             @state.need_prompt = false
             add_prompt(window, @state.prompt_text)
           elsif @state.need_prompt
-            @state.need_prompt = false  # Consume but don't display
+            @state.need_prompt = false # Consume but don't display
           end
 
           window.route_string(text, @line_colors, MAIN_STREAM)

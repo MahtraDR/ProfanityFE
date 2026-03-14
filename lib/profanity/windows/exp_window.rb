@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Experience/skills display window with sorted skill list and highlight support.
-=end
+# Experience/skills display window with sorted skill list and highlight support.
 
 # Experience and skills display window.
 #

@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Null-object window that silently discards all content.
-=end
+# Null-object window that silently discards all content.
 
 # Null-object window that silently discards content.
 #

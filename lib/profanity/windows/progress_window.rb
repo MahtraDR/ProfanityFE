@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Health/mana/stamina progress bar display window.
-=end
+# Health/mana/stamina progress bar display window.
 
 # Progress bar window for health, mana, stamina, and similar gauges.
 #

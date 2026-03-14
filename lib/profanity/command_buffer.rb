@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
-=begin
-Single-line command buffer with horizontal scrolling, kill ring, and history.
-Wraps a Curses::Window for editing; all screen updates use noutrefresh.
-=end
+# Single-line command buffer with horizontal scrolling, kill ring, and history.
+# Wraps a Curses::Window for editing; all screen updates use noutrefresh.
 
 require_relative 'kill_ring'
 
@@ -58,7 +56,7 @@ class CommandBuffer
   attr_reader :offset
 
   # @return [Curses::Window, nil] the curses window used for display
-  attr_reader :window
+  attr_accessor :window
 
   # @return [Array<String>] list of previously entered commands
   attr_reader :history
@@ -93,9 +91,6 @@ class CommandBuffer
   #
   # @param win [Curses::Window] the window to render into
   # @return [void]
-  def window=(win)
-    @window = win
-  end
 
   # Return the width of the attached window.
   # Falls back to DEFAULT_TERMINAL_WIDTH when no window is attached.
@@ -229,18 +224,16 @@ class CommandBuffer
     @pos = 0
     @window.setpos(0, 0)
     (1..@offset).each do |num|
-      begin
-        @window.insch(@text[@offset - num])
-      rescue StandardError => e
-        File.open(LOG_FILE, 'a') do |f|
-          f.puts "command_buffer: #{@text.inspect}"
-          f.puts "offset: #{@offset.inspect}"
-          f.puts "num: #{num.inspect}"
-          f.puts e
-          f.puts e.backtrace[0...BACKTRACE_LIMIT]
-        end
-        return
+      @window.insch(@text[@offset - num])
+    rescue StandardError => e
+      File.open(LOG_FILE, 'a') do |f|
+        f.puts "command_buffer: #{@text.inspect}"
+        f.puts "offset: #{@offset.inspect}"
+        f.puts "num: #{num.inspect}"
+        f.puts e
+        f.puts e.backtrace[0...BACKTRACE_LIMIT]
       end
+      return
     end
     @offset = 0
     @window.noutrefresh
@@ -449,14 +442,14 @@ class CommandBuffer
   # @return [void]
   def add_to_history(cmd)
     @history_pos = 0
-    if (cmd.length >= @min_history_length || cmd.match?(/^\d+$/)) && (cmd != @history[1])
-      if @history[0].nil? || @history[0].empty?
-        @history[0] = cmd
-      else
-        @history.unshift cmd
-      end
-      @history.unshift String.new
+    return unless (cmd.length >= @min_history_length || cmd.match?(/^\d+$/)) && (cmd != @history[1])
+
+    if @history[0].nil? || @history[0].empty?
+      @history[0] = cmd
+    else
+      @history.unshift cmd
     end
+    @history.unshift String.new
   end
 
   # Refresh the window via noutrefresh.
@@ -499,11 +492,11 @@ class CommandBuffer
             end
     @window.setpos(0, delete_pos - @offset)
     @window.delch
-    if (@text.length - @offset + 1) > maxx
-      @window.setpos(0, maxx - 1)
-      @window.addch @text[maxx - @offset - 1]
-      @window.setpos(0, @pos - @offset)
-    end
+    return unless (@text.length - @offset + 1) > maxx
+
+    @window.setpos(0, maxx - 1)
+    @window.addch @text[maxx - @offset - 1]
+    @window.setpos(0, @pos - @offset)
   end
 
   # Delete a word in the given direction, saving deleted text to the kill ring.

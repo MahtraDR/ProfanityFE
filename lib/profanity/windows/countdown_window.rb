@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-=begin
-Roundtime and casttime countdown display window.
-=end
+# Roundtime and casttime countdown display window.
 
 # Countdown timer window for roundtime/casttime display.
 #
@@ -52,7 +50,8 @@ class CountdownWindow < BaseWindow
     old_value = @value
     old_secondary_value = @secondary_value
     @value = [(@end_time.to_f - Time.now.to_f + $server_time_offset.to_f - COUNTDOWN_OFFSET).ceil, 0].max
-    @secondary_value = [(@secondary_end_time.to_f - Time.now.to_f + $server_time_offset.to_f - COUNTDOWN_OFFSET).ceil, 0].max
+    @secondary_value = [(@secondary_end_time.to_f - Time.now.to_f + $server_time_offset.to_f - COUNTDOWN_OFFSET).ceil,
+                        0].max
     if (old_value != @value) or (old_secondary_value != @secondary_value) or (@old_active != @active)
       str = "#{@label}#{[@value, @secondary_value].max.to_s.rjust(maxx - @label.length)}"
       setpos(0, 0)
