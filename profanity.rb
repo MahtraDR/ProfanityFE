@@ -463,7 +463,8 @@ execute_command = proc { |cmd|
              else
                'line scroll'
              end
-      window.add_string("* Arrow mode: #{mode}")
+      msg = "* Arrow mode: #{mode}"
+      window.add_string(msg, [{ start: 0, end: msg.length, fg: '00ffff', bg: nil, ul: nil }])
       Curses.doupdate
     end
   elsif cmd =~ /^\.links/i
