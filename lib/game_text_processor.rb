@@ -463,6 +463,19 @@ class GameTextProcessor
     end
     @cmd_buffer.window&.getch
     exit
+  rescue IOError => e
+    # Normal disconnect — socket closed by another thread (e.g., Lich shutdown)
+    ProfanityLog.write('game_text_processor', "disconnected: #{e.message}")
+    @wm.stream[MAIN_STREAM]&.add_string ' *'.dup
+    @wm.stream[MAIN_STREAM]&.add_string ' * Connection closed'.dup
+    @wm.stream[MAIN_STREAM]&.add_string ' * Press any key to exit...'.dup
+    @wm.stream[MAIN_STREAM]&.add_string ' *'.dup
+    CURSES_MUTEX.synchronize do
+      @cmd_buffer.window&.noutrefresh
+      Curses.doupdate
+    end
+    @cmd_buffer.window&.getch
+    exit
   rescue StandardError => e
     ProfanityLog.write('game_text_processor', e.to_s, backtrace: e.backtrace)
     exit
