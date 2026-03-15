@@ -91,7 +91,7 @@ ruby profanity.rb --port=8000 --char=Mahtra --custom-colors=off
 ruby profanity.rb --port=8000 --char=Mahtra --use-default-colors --default-color-id=-1 --default-background-color-id=-1
 
 # Remote/SSH session (display URLs as text instead of launching)
-ruby profanity.rb --port=8000 --char=Mahtra --remote-url
+ruby profanity.rb --port=8000 --char=Mahtra --remote-url=https://game.example.com
 
 # Log to a specific file (overrides --char default)
 ruby profanity.rb --port=8000 --char=Mahtra --log-file=~/logs/mahtra.log

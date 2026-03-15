@@ -570,12 +570,14 @@ key_action['next_tab'] = proc {
   cmd_buffer.refresh
   Curses.doupdate
 }
+key_action['switch_tab'] = key_action['next_tab']
 
 key_action['prev_tab'] = proc {
   TabbedTextWindow.list.each(&:prev_tab)
   cmd_buffer.refresh
   Curses.doupdate
 }
+key_action['switch_tab_reverse'] = key_action['prev_tab']
 
 (1..5).each do |n|
   key_action["switch_tab_#{n}"] = proc {
