@@ -77,3 +77,10 @@ class ExpWindow < BaseWindow
     noutrefresh
   end
 end
+
+BaseWindow.register_type('exp') do |height, width, top, left, element, wm|
+  window = ExpWindow.new(height, width - 1, top, left)
+  window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
+  wm.stream['exp'] = window
+  window
+end

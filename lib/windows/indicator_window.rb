@@ -8,6 +8,9 @@
 # value. Supports optional highlight overlays via +label_colors+.
 # Common uses: kneeling, hidden, stunned, bleeding status indicators.
 class IndicatorWindow < BaseWindow
+  # Default foreground colors: [off state, on state]
+  DEFAULT_FG = %w[444444 ffff00].freeze
+
   # @return [Array<String>] foreground hex color codes indexed by value state
   attr_accessor :fg
 
@@ -36,7 +39,7 @@ class IndicatorWindow < BaseWindow
   #
   # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
-    @fg = %w[444444 ffff00]
+    @fg = DEFAULT_FG.dup
     @bg = [nil, nil]
     @label = '*'
     @label_colors = nil
@@ -78,14 +81,31 @@ class IndicatorWindow < BaseWindow
     elsif @value
       # Original single-color behavior
       if @value.is_a?(Integer)
-        attron(Curses.color_pair(get_color_pair_id(@fg[@value], @bg[@value])) | Curses::A_NORMAL) { addstr @label }
+        render_colored(@label, @fg[@value], @bg[@value])
       else
-        attron(Curses.color_pair(get_color_pair_id(@fg[1], @bg[1])) | Curses::A_NORMAL) { addstr @label }
+        render_colored(@label, @fg[1], @bg[1])
       end
     else
-      attron(Curses.color_pair(get_color_pair_id(@fg[0], @bg[0])) | Curses::A_NORMAL) { addstr @label }
+      render_colored(@label, @fg[0], @bg[0])
     end
     noutrefresh
     true
   end
+end
+
+BaseWindow.register_type('indicator') do |height, width, top, left, element, wm|
+  if element.attributes['value'] && (window = wm.previous_indicator[element.attributes['value']])
+    wm.previous_indicator[element.attributes['value']] = nil
+    wm.old_windows.delete(window)
+  else
+    window = IndicatorWindow.new(height, width, top, left)
+  end
+  window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
+  window.scrollok(false)
+  window.label = element.attributes['label'] if element.attributes['label']
+  window.fg = parse_color_attrs(element, 'fg') if element.attributes['fg']
+  window.bg = parse_color_attrs(element, 'bg') if element.attributes['bg']
+  wm.indicator[element.attributes['value']] = window if element.attributes['value']
+  window.redraw
+  window
 end

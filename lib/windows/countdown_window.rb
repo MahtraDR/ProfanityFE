@@ -8,6 +8,9 @@
 # time offset. Renders a color-coded bar with primary and secondary
 # countdown regions, updating only when the displayed value changes.
 class CountdownWindow < BaseWindow
+  # Default background colors: [inactive, primary countdown, secondary countdown]
+  DEFAULT_BG = [nil, 'ff0000', '0000ff'].freeze
+
   # @return [String] label text displayed at the left of the bar
   attr_accessor :label
 
@@ -38,7 +41,7 @@ class CountdownWindow < BaseWindow
   def initialize(*args)
     @label = String.new
     @fg = []
-    @bg = [nil, 'ff0000', '0000ff']
+    @bg = DEFAULT_BG.dup
     @active = nil
     @old_active = nil
     @end_time = 0
@@ -63,37 +66,19 @@ class CountdownWindow < BaseWindow
           str = "#{@label}#{'?'.rjust(maxx - @label.length)}"
           left_background_str = str[0, 1].to_s
           right_background_str = str[left_background_str.length, (@label.length + (maxx - @label.length))].to_s
-          attron(Curses.color_pair(get_color_pair_id(@fg[1], @bg[1])) | Curses::A_NORMAL) do
-            addstr left_background_str
-          end
-          attron(Curses.color_pair(get_color_pair_id(@fg[2], @bg[2])) | Curses::A_NORMAL) do
-            addstr right_background_str
-          end
+          render_colored(left_background_str, @fg[1], @bg[1])
+          render_colored(right_background_str, @fg[2], @bg[2])
         else
-          attron(Curses.color_pair(get_color_pair_id(@fg[0], @bg[0])) | Curses::A_NORMAL) do
-            addstr str
-          end
+          render_colored(str, @fg[0], @bg[0])
         end
       else
         left_background_str = str[0, @value].to_s
         secondary_background_str = str[left_background_str.length, (@secondary_value - @value)].to_s
         right_background_str = str[(left_background_str.length + secondary_background_str.length),
                                    (@label.length + (maxx - @label.length))].to_s
-        unless left_background_str.empty?
-          attron(Curses.color_pair(get_color_pair_id(@fg[1], @bg[1])) | Curses::A_NORMAL) do
-            addstr left_background_str
-          end
-        end
-        unless secondary_background_str.empty?
-          attron(Curses.color_pair(get_color_pair_id(@fg[2], @bg[2])) | Curses::A_NORMAL) do
-            addstr secondary_background_str
-          end
-        end
-        unless right_background_str.empty?
-          attron(Curses.color_pair(get_color_pair_id(@fg[3], @bg[3])) | Curses::A_NORMAL) do
-            addstr right_background_str
-          end
-        end
+        render_colored(left_background_str, @fg[1], @bg[1]) unless left_background_str.empty?
+        render_colored(secondary_background_str, @fg[2], @bg[2]) unless secondary_background_str.empty?
+        render_colored(right_background_str, @fg[3], @bg[3]) unless right_background_str.empty?
       end
       @old_active = @active
       noutrefresh
@@ -102,4 +87,21 @@ class CountdownWindow < BaseWindow
       false
     end
   end
+end
+
+BaseWindow.register_type('countdown') do |height, width, top, left, element, wm|
+  if element.attributes['value'] && (window = wm.previous_countdown[element.attributes['value']])
+    wm.previous_countdown[element.attributes['value']] = nil
+    wm.old_windows.delete(window)
+  else
+    window = CountdownWindow.new(height, width, top, left)
+  end
+  window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
+  window.scrollok(false)
+  window.label = element.attributes['label'] if element.attributes['label']
+  window.fg = parse_color_attrs(element, 'fg') if element.attributes['fg']
+  window.bg = parse_color_attrs(element, 'bg') if element.attributes['bg']
+  wm.countdown[element.attributes['value']] = window if element.attributes['value']
+  window.update
+  window
 end

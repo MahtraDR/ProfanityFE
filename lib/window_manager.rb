@@ -18,6 +18,34 @@
 class WindowManager
   attr_reader :command_window, :command_window_layout
 
+  # Previous-layout hashes exposed for builder procs during {#load_layout}.
+  # These are only meaningful inside a layout reload; outside that context
+  # they are empty hashes.
+  #
+  # @return [Hash] previous indicator windows keyed by value
+  # @api private
+  attr_reader :previous_indicator
+
+  # @return [Hash] previous stream windows keyed by stream name
+  # @api private
+  attr_reader :previous_stream
+
+  # @return [Hash] previous progress windows keyed by value
+  # @api private
+  attr_reader :previous_progress
+
+  # @return [Hash] previous countdown windows keyed by value
+  # @api private
+  attr_reader :previous_countdown
+
+  # Windows from the previous layout that have not been reused.
+  # Builder procs delete reused windows from this set; remaining
+  # windows are closed after the layout loop.
+  #
+  # @return [Array<BaseWindow>]
+  # @api private
+  attr_reader :old_windows
+
   # Create a new window manager with empty handler hashes.
   #
   # @return [WindowManager]
@@ -30,6 +58,11 @@ class WindowManager
     @command_window = nil
     @command_window_layout = nil
     @handler_mutex = Mutex.new
+    @previous_indicator = {}
+    @previous_stream = {}
+    @previous_progress = {}
+    @previous_countdown = {}
+    @old_windows = []
   end
 
   # Returns the live stream handler hash mapping stream names to window objects.
@@ -90,18 +123,18 @@ class WindowManager
     end
 
     @handler_mutex.synchronize do
-      old_windows = IndicatorWindow.list | TextWindow.list | CountdownWindow.list | ProgressWindow.list
+      @old_windows = IndicatorWindow.list | TextWindow.list | CountdownWindow.list | ProgressWindow.list
 
-      previous_indicator = @indicator
+      @previous_indicator = @indicator
       @indicator = {}
 
-      previous_stream = @stream
+      @previous_stream = @stream
       @stream = {}
 
-      previous_progress = @progress
+      @previous_progress = @progress
       @progress = {}
 
-      previous_countdown = @countdown
+      @previous_countdown = @countdown
       @countdown = {}
       @room = {}
 
@@ -124,120 +157,15 @@ class WindowManager
         next unless (height > 0) && (width > 0) && (top >= 0) && (left >= 0) &&
                     (top < Curses.lines) && (left < Curses.cols)
 
-        case e.attributes['class']
-        when 'indicator'
-          if e.attributes['value'] && (window = previous_indicator[e.attributes['value']])
-            previous_indicator[e.attributes['value']] = nil
-            old_windows.delete(window)
-          else
-            window = IndicatorWindow.new(height, width, top, left)
-          end
-          window.layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'], e.attributes['left']]
-          window.scrollok(false)
-          window.label = e.attributes['label'] if e.attributes['label']
-          window.fg = parse_color_attrs(e, 'fg') if e.attributes['fg']
-          window.bg = parse_color_attrs(e, 'bg') if e.attributes['bg']
-          @indicator[e.attributes['value']] = window if e.attributes['value']
-          window.redraw
-
-        when 'text'
-          if width > 1
-            if e.attributes['value'] && (window = previous_stream[previous_stream.keys.find do |key|
-              e.attributes['value'].split(',').include?(key)
-            end])
-              previous_stream[e.attributes['value']] = nil
-              old_windows.delete(window)
-            else
-              window = TextWindow.new(height, width - 1, top, left)
-              window.scrollbar = Curses::Window.new(window.maxy, 1, window.begy, window.begx + window.maxx)
-            end
-            window.layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'], e.attributes['left']]
-            window.scrollok(true)
-            window.max_buffer_size = e.attributes['buffer-size'] || 1000
-            window.time_stamp = e.attributes['timestamp']
-            e.attributes['value'].split(',').each do |str|
-              @stream[str] = window
-            end
-            SCROLL_WINDOW.push(window)
-          end
-
-        when 'tabbed'
-          if width > 1
-            window = TabbedTextWindow.new(height, width - 1, top, left)
-            window.scrollbar = Curses::Window.new(window.maxy, 1, window.begy, window.begx + window.maxx)
-            window.layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'], e.attributes['left']]
-            window.scrollok(true)
-            window.setscrreg(1, window.maxy - 1)
-            window.max_buffer_size = e.attributes['buffer-size'] || 1000
-            window.time_stamp = e.attributes['timestamp']
-            tab_names = (e.attributes['tabs'] || e.attributes['value'] || MAIN_STREAM).split(',')
-            tab_names.each do |tab_name|
-              window.add_tab(tab_name.strip)
-              @stream[tab_name.strip] = window
-            end
-            window.redraw
-            SCROLL_WINDOW.push(window)
-          end
-
-        when 'exp'
-          @stream['exp'] = ExpWindow.new(height, width - 1, top, left)
-
-        when 'percWindow'
-          @stream['percWindow'] = PercWindow.new(height, width - 1, top, left)
-
-        when 'room'
-          window = RoomWindow.new(height, width, top, left)
-          window.layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'], e.attributes['left']]
-          window.scrollok(false)
-          window.title_preset = e.attributes['title-preset'] || 'roomName'
-          window.desc_preset = e.attributes['desc-preset']
-          window.creatures_preset = e.attributes['creatures-preset'] || 'monsterbold'
-          @room['room'] = window
-
-        when 'countdown'
-          if e.attributes['value'] && (window = previous_countdown[e.attributes['value']])
-            previous_countdown[e.attributes['value']] = nil
-            old_windows.delete(window)
-          else
-            window = CountdownWindow.new(height, width, top, left)
-          end
-          window.layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'], e.attributes['left']]
-          window.scrollok(false)
-          window.label = e.attributes['label'] if e.attributes['label']
-          window.fg = parse_color_attrs(e, 'fg') if e.attributes['fg']
-          window.bg = parse_color_attrs(e, 'bg') if e.attributes['bg']
-          @countdown[e.attributes['value']] = window if e.attributes['value']
-          window.update
-
-        when 'progress'
-          if e.attributes['value'] && (window = previous_progress[e.attributes['value']])
-            previous_progress[e.attributes['value']] = nil
-            old_windows.delete(window)
-          else
-            window = ProgressWindow.new(height, width, top, left)
-          end
-          window.layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'], e.attributes['left']]
-          window.scrollok(false)
-          window.label = e.attributes['label'] if e.attributes['label']
-          window.fg = parse_color_attrs(e, 'fg') if e.attributes['fg']
-          window.bg = parse_color_attrs(e, 'bg') if e.attributes['bg']
-          @progress[e.attributes['value']] = window if e.attributes['value']
-          window.redraw
-
-        when 'command'
-          @command_window ||= Curses::Window.new(height, width, top, left)
-          @command_window_layout = [e.attributes['height'], e.attributes['width'], e.attributes['top'],
-                                    e.attributes['left']]
-          @command_window.scrollok(false)
-          @command_window.keypad(true)
-        end
+        builder = BaseWindow.type_registry[e.attributes['class']]
+        builder&.call(height, width, top, left, e, self)
       end
 
       if (current_scroll_window = SCROLL_WINDOW[0])
         current_scroll_window.set_active(true)
       end
 
-      old_windows.each do |window|
+      @old_windows.each do |window|
         IndicatorWindow.list.delete(window)
         TextWindow.list.delete(window)
         TabbedTextWindow.list.delete(window)
@@ -319,4 +247,17 @@ class WindowManager
 
     Curses.doupdate
   end
+end
+
+# Register the command window type. This is a plain Curses::Window (not a
+# BaseWindow subclass), so it lives here rather than in a window file.
+BaseWindow.register_type('command') do |height, width, top, left, element, wm|
+  wm.instance_variable_set(:@command_window, Curses::Window.new(height, width, top, left)) unless wm.command_window
+  wm.instance_variable_set(:@command_window_layout, [
+    element.attributes['height'], element.attributes['width'],
+    element.attributes['top'], element.attributes['left']
+  ])
+  wm.command_window.scrollok(false)
+  wm.command_window.keypad(true)
+  wm.command_window
 end

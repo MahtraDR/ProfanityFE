@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require_relative 'spell_abbreviations'
+require_relative 'games/dragonrealms'
+require_relative 'room_data_processor'
+require_relative 'familiar_notifier'
 
 # Processes game server output in a dedicated thread, handling XML tag parsing,
 # stream routing, room data assembly, spell abbreviation, and UI updates.
@@ -28,9 +31,9 @@ require_relative 'spell_abbreviations'
 #   )
 #   processor.run(server)
 class GameTextProcessor
-  # DragonRealms spell abbreviation lookup.
-  # @see DR_SPELL_ABBREVIATIONS
-  DR_ALL_SPELLS = DR_SPELL_ABBREVIATIONS
+  include Games::DragonRealms
+  include RoomDataProcessor
+  include FamiliarNotifier
 
   # Create a new processor wired to the given window manager and shared state.
   #
@@ -534,171 +537,18 @@ class GameTextProcessor
     end
 
     # Room data capture for RoomWindow - skip routing to main window if captured
-    room_data_captured = false
-    if @wm.room['room'] && !text.empty?
-      case @room_capture_mode
-      when :title
-        # Capture room title (RoomWindow will add brackets during render)
-        # Format input: [Room Name] (Room ID) -> output: Room Name] (Room ID)
-        # Remove leading [ and trailing ] before room ID
-        @room_pending_title = text.sub(/^\[/, '').sub(/\]\s*\(/, ' (').strip
-        @room_pending_title_colors = @line_colors.dup
-        @room_capture_mode = nil
-        room_data_captured = true
-      when :desc
-        @room_pending_desc = text.strip
-        @room_pending_desc_colors = @line_colors.dup
-        @room_capture_mode = nil
-        room_data_captured = true
-      end
+    return if process_room_data(text, @line_colors)
 
-      # Detect "You also see" for objects (may have leading whitespace)
-      if text =~ /^\s*You also see\b/
-        # Extract from raw line to preserve <pushBold/> tags for RoomWindow creature highlighting
-        # Strip </component> tag which may be at end of raw line
-        @room_pending_objects = if @current_raw_line && (match = @current_raw_line.match(/You also see\b.*/))
-                                  match[0].gsub(%r{</component>}, '').strip
-                                else
-                                  text.strip
-                                end
-        @room_pending_objects_colors = @line_colors.dup
-        room_data_captured = true
-      end
-
-      # Detect "Also here:" for players
-      if text =~ /^Also here:\s*(.+)$/
-        @room_pending_players = text.strip
-        room_data_captured = true
-      end
-
-      # Detect "Obvious paths:", "Obvious exits:", or "Room Exits:" for exits
-      if text =~ /^(?:Obvious (?:paths|exits)|Room Exits):/
-        # Strip <d> tags from exits
-        @room_pending_exits = text.gsub(%r{</?d>}, '').strip
-        room_data_captured = true
-        # Trigger room render since exits are typically last
-        # Only update if we have pending data (avoid double-updates clearing data)
-        if (@room_pending_title || @room_pending_desc || @room_pending_objects || @room_pending_players) &&
-           (room_window = @wm.room['room'])
-          room_window.update_title(@room_pending_title || '')
-          room_window.update_desc(@room_pending_desc || '')
-          room_window.update_objects(@room_pending_objects || '')
-          room_window.update_players(@room_pending_players || '')
-          room_window.clear_supplemental
-
-          # Also update the room players indicator (fallback for games that don't use streams)
-          if (window = @wm.indicator['room players'])
-            if @room_pending_players
-              names = parse_player_names(@room_pending_players)
-              if names.any?
-                names_text = names.join(', ')
-                window.label_colors = HighlightProcessor.apply_highlights(names_text, [])
-                window.label = names_text
-                window.update(true)
-              else
-                window.label_colors = nil
-                window.label = ' '
-                window.update(false)
-              end
-            else
-              # No players in room - clear the indicator
-              window.label_colors = nil
-              window.label = ' '
-              window.update(false)
-            end
-          end
-
-          # Clear pending data
-          @room_pending_title = nil
-          @room_pending_title_colors = nil
-          @room_pending_desc = nil
-          @room_pending_desc_colors = nil
-          @room_pending_objects = nil
-          @room_pending_objects_colors = nil
-          @room_pending_players = nil
-          @room_pending_number = nil
-        end
-
-        # Always update exits (even on subsequent exit lines)
-        @wm.room['room'].update_exits(@room_pending_exits || '')
-        @room_pending_exits = nil
-        @need_update = true
-      end
-
-      # Detect "Room Number:" or "StringProcs:" lines (come after exits)
-      if text =~ /^Room Number:\s*\d+/
-        @wm.room['room'].update_room_number(text.strip)
-        room_data_captured = true
-        @need_update = true
-      elsif text =~ /^StringProcs:/
-        @wm.room['room'].update_stringprocs(text.strip)
-        room_data_captured = true
-        @need_update = true
-      end
-
-      # Skip routing room data to main window - don't duplicate
-      return if room_data_captured
-    end
-
-    # if text =~ /<b>/
-    #   text.gsub!("<b>", "<pushBold/>")
-    # end
-    # if text =~ /<\/b>/
-    #   text.gsub!("</b>", "<popBold/>")
-    # end
-    # [custom/t2: ***STATUS*** EXECUTE fill-pouch]
-    if text =~ %r{^\[(?:custom/)?\w+: \*\*\*STATUS\*\*\*\s(?!\d+).*}
-      note = text.gsub(%r{(\[|\]|\*\*\*STATUS\*\*\* |EXECUTE |custom/)}, '')
-    # elsif text =~ /<[^>]+>/
-    #   text = ""
-    elsif text =~ /Auctioneer Endlar bangs his gavel and yells, "Bidding is now open/
-      note = text
-    elsif text =~ /\w+ just opened the waiting list\./
-      note = text
-    elsif (match = text.match(/You sense nothing wrong with (?<name>\w+)/))
-      note = "#{match[:name]} is all healthy."
-    elsif text =~ /reaches over and holds|just tried to take your hand, but you politely pulled away|\w+ is next on .* list/
-      note = text
-    elsif (match = text.match(/You believe you've learned something significant about (?<topic>\w+\s?\w*)!$/))
-      note = "Almanac: #{match[:topic]}"
-    elsif (match = text.match(%r{Tarantula successfully sacrificed (?<count>\d+)/34 of (?<name>\w+\s?\w*) at}))
-      note = "Tarantula: #{match[:name]} #{match[:count]}/34"
-    elsif (match = text.match(/contains a complete description of the (?<spell>.*) spell/))
-      note = "Scroll spell: #{match[:spell]}"
-    elsif text =~ /^You raise the bead up, and a black glow surrounds it/
-      note = 'Focus effect started.'
-    elsif text =~ /^The glow slowly fades away from around you/
-      note = 'Focus effect ended.'
-    elsif (match = text.match(/(?<info>Spent .* looting \d+ boxes.)/))
-      note = match[:info]
-    elsif (match = text.match(%r{(?<info>\w+\s?\w*:\s+\d+\s\d+\.\d+%\s\w+\s?\w*\s+\(\d+/34\))}))
-      note = match[:info]
-    elsif text =~ /(?:Character|Longitem)\s+accepting from is/
-      note = text
-    end
-
-    if note
-      @line_colors = []
-      if PRESET['monsterbold']
-        @line_colors = [{
-          start: 0,
-          end: note.length,
-          fg: PRESET['monsterbold'][0],
-          bg: PRESET['monsterbold'][1]
-        }]
-      end
-      @wm.stream['familiar'].add_string(note, @line_colors)
-      @need_update = true
-    end
+    check_familiar_notification(text)
 
     if text =~ /^\[.*?\]>/
       @state.need_prompt = false
     elsif (match = text.match(/^\s*You are stunned for (?<rounds>[0-9]+) rounds?/))
       new_stun(match[:rounds].to_i * 5)
-    elsif text =~ /^Deep and resonating, you feel the chant that falls from your lips|^Moisture beads upon your skin and you feel your eyes cloud over|^Lifting your finger, you begin to chant and draw a series of conjoined circles|^Crouching beside the prone form of|^Murmuring softly, you call upon your connection with the Destroyer|^Rich and lively, the scent of wild flowers suddenly fills the air|^Breathing slowly, you extend your senses towards the world around you|^Your surroundings grow dim\.\.\.you lapse into a state of awareness only|^Murmuring softly, a mournful chant slips from your lips|^Emptying all breathe from your body, you slowly still yourself|^Thin at first, a fine layer of rime tickles your hands|^As you begin to chant,? you notice the scent of dry, dusty parchment|^Wrapped in an aura of chill, you close your eyes and softly begin to chant|^As .*? begins to chant, your spirit is drawn closer to your body/
+    elsif text =~ Games::DragonRealms::RAISE_DEAD_PATTERN
       # Raise Dead stun (cleric spell — all deity-specific messaging variants)
       new_stun(30.6)
-    elsif text =~ /^Just as you think the falling will never end, you crash through an ethereal barrier which bursts into a dazzling kaleidoscope of color!  Your sensation of falling turns to dizziness and you feel unusually heavy for a moment\.  Everything seems to stop for a prolonged second and then WHUMP!!!/
+    elsif text =~ Games::DragonRealms::SHADOW_VALLEY_PATTERN
       # Shadow Valley exit stun
       new_stun(16.2)
     # elsif text =~ /^You have.*?(?:case of uncontrollable convulsions|case of sporadic convulsions|strange case of muscle twitching)/
@@ -766,76 +616,20 @@ class GameTextProcessor
         end
 
         # Handle room components for dedicated RoomWindow
-        if @current_stream =~ /^room(\s|$)/ && @wm.room['room']
-          window = @wm.room['room']
-
-          case @current_stream
-          when 'room', 'room title'
-            @room_pending_title = text.strip
-          when 'room desc', 'roomDesc'
-            @room_pending_desc = text.strip
-          when 'room objs'
-            # Store pending instead of updating directly to avoid duplicates
-            # Use raw line to preserve <pushBold/> tags for creature highlighting
-            # Strip </component> tag which may be at end of raw line
-            @room_pending_objects = if @current_raw_line && !@current_raw_line.empty?
-                                      @current_raw_line.gsub(%r{</component>}, '').strip
-                                    else
-                                      text.strip
-                                    end
-          when 'room players'
-            @room_pending_players = text.strip
-            # Also update the indicator if present (fall through below)
-          when 'room exits'
-            # Trigger batch update since exits are last
-            @room_pending_exits = text.gsub(%r{</?d>}, '').strip
-            window.update_title(@room_pending_title || '')
-            window.update_desc(@room_pending_desc || '')
-            window.update_objects(@room_pending_objects || '')
-            window.update_players(@room_pending_players || '')
-            window.update_exits(@room_pending_exits || '')
-            # Clear pending data
-            @room_pending_title = nil
-            @room_pending_title_colors = nil
-            @room_pending_desc = nil
-            @room_pending_desc_colors = nil
-            @room_pending_objects = nil
-            @room_pending_objects_colors = nil
-            @room_pending_players = nil
-            @room_pending_exits = nil
-          end
-
-          @need_update = true
-          # Don't skip for room players - let the indicator handler also process it
-          return unless @current_stream == 'room players'
-        end
-
-        # Handle room players indicator - extract player names only
-        if @current_stream == 'room players'
-          if (window = @wm.indicator['room players'])
-            # Parse player names from "Also here: Title Name who is..., Title Name2 who is..."
-            names = parse_player_names(text)
-            if names.any?
-              names_text = names.join(', ')
-              # Apply highlight patterns to player names
-              window.label_colors = HighlightProcessor.apply_highlights(names_text, [])
-              window.label = names_text
-              window.update(true)
-            else
-              window.label_colors = nil
-              window.label = ' '
-              window.update(false)
-            end
-            @need_update = true
-          end
-          return # Don't route to stream_handler
+        room_result = process_room_stream(text)
+        if room_result == :consumed
+          return
+        elsif room_result == :continue
+          # Room players: also update the indicator, then stop
+          update_room_players_indicator(text)
+          return
         end
 
         if (window = @wm.stream[@current_stream])
           if @current_stream == 'death'
             # FIXME: has been vaporized!
             # fixme: ~ off to a rough start
-            if (death_match = text.match(/^\s\*\s(?:A fiery phoenix soars into the heavens as\s)?(?<name>[A-Z][a-z]+)(?: was just struck down.*| just disintegrated!| was lost to the Plane of Exile!|'s spirit arises from the ashes of death.| was smote by \w+!)/))
+            if (death_match = text.match(Games::DragonRealms::DEATH_PATTERN))
               name = death_match[:name]
               timestamp = Time.now.strftime('%H:%M')
               text = if text.match?(/A fiery phoenix soars into the heavens as/)
@@ -853,9 +647,8 @@ class GameTextProcessor
               })
             end
           elsif @current_stream == 'logons'
-            foo = { 'joins the adventure with little fanfare.' => '007700',
-                    'just sauntered into the adventure with an annoying tune on his lips.' => '007700', 'just wandered into another adventure.' => '007700', 'just limped in for another adventure.' => '007700', 'snuck out of the shadow he was hiding in.' => '007700', 'joins the adventure with a gleam in her eye.' => '007700', 'joins the adventure with a gleam in his eye.' => '007700', 'comes out from within the shadows with renewed vigor.' => '007700', 'just crawled into the adventure.' => '007700', 'has woken up in search of new ale!' => '007700', 'just popped into existance.' => '007700', 'has joined the adventure after escaping another.' => '007700', 'joins the adventure.' => '007700', 'returns home from a hard day of adventuring.' => '777700', 'has left to contemplate the life of a warrior.' => '777700', 'just sauntered off-duty to get some rest.' => '777700', 'departs from the adventure with little fanfare.' => '777700', 'limped away from the adventure for now.' => '777700', 'thankfully just returned home to work on a new tune.' => '777700', 'fades swiftly into the shadows.' => '777700', 'retires from the adventure for now.' => '777700', 'just found a shadow to hide out in.' => '777700', 'quietly departs the adventure.' => '777700', 'has disconnected.' => 'aa7733' }
-            if (logon_match = text.match(/^\s\*\s(?<name>[A-Z][a-z]+) (?<type>#{foo.keys.join('|')})/))
+            logon_patterns = Games::DragonRealms::LOGON_PATTERNS
+            if (logon_match = text.match(/^\s\*\s(?<name>[A-Z][a-z]+) (?<type>#{logon_patterns.keys.join('|')})/))
               name = logon_match[:name]
               logon_type = logon_match[:type]
               timestamp = Time.now.strftime('%H:%M')
@@ -866,7 +659,7 @@ class GameTextProcessor
               @line_colors.push({
                 start: 0,
                 end: 5,
-                fg: foo[logon_type]
+                fg: logon_patterns[logon_type]
               })
             end
           elsif @current_stream =~ /^(?:speech|thoughts|familiar)$/ && SPEECH_TS
@@ -887,7 +680,7 @@ class GameTextProcessor
             if text.index('(')
               spell_name = text[0..text.index('(') - 2]
               # Shorten spell names
-              text.sub!(/^#{spell_name}/, DR_ALL_SPELLS[spell_name.strip]) if DR_ALL_SPELLS.include?(spell_name.strip)
+              text.sub!(/^#{spell_name}/, abbreviate_spell(spell_name)) if Games::DragonRealms::SPELL_ABBREVIATIONS.include?(spell_name.strip)
             end
 
             text.gsub!(/  /, ' ')

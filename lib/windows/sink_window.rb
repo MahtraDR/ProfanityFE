@@ -1,57 +1,41 @@
 # frozen_string_literal: true
 
-# Null-object window that silently discards all content.
+=begin
+Null-object window that silently discards all content.
+=end
 
-# Null-object window that silently discards content.
+# Null-object window for stream suppression.
 #
-# Use this to hide streams without creating a visible window. Inherits
-# from {BaseWindow} for LSP compliance and type safety, but all content
-# methods are no-ops. Sink windows are excluded from the window registry
-# so they never appear in {BaseWindow.find_window_at} or iteration over
-# visible windows.
+# Implements the same interface as BaseWindow text methods but discards
+# all input. Does not inherit from BaseWindow or Curses::Window — it's
+# a pure duck-type that responds to the same messages without creating
+# any Curses resources.
 #
 # @example Layout XML usage
 #   <window class='sink' value='atmospherics'/>
 #   <window class='sink' value='combat,assess'/>
-class SinkWindow < BaseWindow
-  # No-op: sinks are excluded from the window registry so they
-  # never appear in {BaseWindow.find_window_at} or visible-window iteration.
-  #
-  # @param _instance [SinkWindow] ignored
-  # @return [void]
-  def self.register_instance(_instance); end
-
-  # Create a 1x1 off-screen window for stream suppression.
-  def initialize
-    super(1, 1, 0, 0)
-  end
-
-  # No-op: discards incoming text. Stream is suppressed.
-  #
+class SinkWindow
+  # No-op: sinks don't participate in window lists.
   # @return [void]
   def add_string(*); end
 
-  # No-op: discards tab-routed text. Stream is suppressed.
-  #
+  # No-op: sinks discard tab-routed text.
   # @return [void]
   def add_string_to_tab(*); end
 
-  # No-op: discards routed text. Stream is suppressed.
-  #
+  # No-op: sinks discard routed text.
   # @return [void]
   def route_string(*); end
 
-  # No-op: discards rendered lines. Stream is suppressed.
-  #
+  # No-op: sinks discard rendered lines.
   # @return [void]
   def add_line(*); end
 
-  # No-op: nothing to redraw. Stream is suppressed.
-  #
+  # No-op: nothing to redraw.
   # @return [void]
   def redraw; end
 
-  # Always returns false since sinks have no buffer content to match.
+  # Always false — sinks have no buffer content.
   #
   # @param _prompt_text [String] ignored
   # @return [Boolean] always false

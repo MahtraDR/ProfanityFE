@@ -19,9 +19,26 @@
   Requirements:
     - A Nerd Font installed (https://nerdfonts.com) for glyph icons
     - A large terminal window (190+ columns recommended) so the
-      right-side effectmon panel is visible
+      right-side effectmon panel is visible — if you launch
+      ProfanityFE in a window too small to fit everything, you
+      will not see the spell effects on the right side. Make sure
+      your window is large enough BEFORE you launch ProfanityFE.
     - effectmon.lic  (populates buff/debuff/spell progress bars)
     - targetlist.lic (populates the combat/target pane)
+
+  Color palette reference:
+    Foreground                        Background
+    #292C33  black                    #555555  black
+    #bf4d80  red                     #8c4665  red
+    #53a684  green                   #287349  green
+    #a29900  yellow                  #767339  yellow
+    #477ab3  blue                    #395573  blue
+    #7e62b3  magenta                 #5e468c  magenta
+    #60b4bf  cyan                    #35646a  cyan
+    #9BA2B2  white                   #899ca1  white
+
+    Base background: #292C33
+    Base foreground: #9BA2B2
 
   Usage:
     profanity ..template=eleazzar.xml
@@ -32,52 +49,6 @@
   significant modification. The character name lists (Empath,
   Cleric, Merchant) contain GemStone IV player names and should
   be customized for your own server community.
--->
-
-<!--
-This template assumes you are using the following:
-- A nerdfont from nerdfonts.com - for nice icons
-- effectmon.lic - for populating the right side of the screen with your spell effects
-- targetlist.lic - for populating the lower left side of the screen with valid targets
-
-WARNING: If you launch ProfanityFE in a window _too small_ to fit everything you won't see
-the spell effects on the right side - you need to make sure your window is large enough
-**before** you launch ProfanityFE!
-
-
-Usefull regex to use with sgml-mode and rainbow-mode in emacs/vim:
-:%s/\<[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]\>/#&/g
-Note to self: remember when you find and replace # to remove the # you may remove it from the line above!
-
-TODO: Classify message foreground highlights, avoid bg highlights use that for characters
-Info / Positive effects: Cyan
-Critical / Negative effects: Light Red
-Warning / Effect ending: Light Yellow
-
-fg
-"#292C33", /* black   */
-"#bf4d80", /* red     */
-"#53a684", /* green   */
-"#a29900", /* yellow  */
-"#477ab3", /* blue    */
-"#7e62b3", /* magenta */
-"#60b4bf", /* cyan    */
-"#9BA2B2", /* white   */
-
-bg
-"#555555", /* black   */
-"#8c4665", /* red     */
-"#287349", /* green   */
-"#767339", /* yellow  */
-"#395573", /* blue    */
-"#5e468c", /* magenta */
-"#35646a", /* cyan    */
-"#899ca1", /* white   */
-
-"#292C33", /* background */
-"#9BA2B2", /* foreground */
-
-
 -->
 
 <settings>

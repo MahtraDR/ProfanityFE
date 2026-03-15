@@ -9,6 +9,9 @@
 # middle transition, right background, and zero-value) via the +fg+
 # and +bg+ arrays.
 class ProgressWindow < BaseWindow
+  # Default background colors: [fill, empty]
+  DEFAULT_BG = %w[0000aa 000055].freeze
+
   # @return [Array<String>] foreground hex color codes indexed by bar region
   attr_accessor :fg
 
@@ -30,7 +33,7 @@ class ProgressWindow < BaseWindow
   def initialize(*args)
     @label = String.new
     @fg = []
-    @bg = %w[0000aa 000055]
+    @bg = DEFAULT_BG.dup
     @value = 100
     @max_value = 100
     super
@@ -61,9 +64,7 @@ class ProgressWindow < BaseWindow
     percent = [[(@value / @max_value.to_f), 0.to_f].max, 1].min
     if (@value == 0) and (fg[3] or bg[3])
       setpos(0, 0)
-      attron(Curses.color_pair(get_color_pair_id(@fg[3], @bg[3])) | Curses::A_NORMAL) do
-        addstr str
-      end
+      render_colored(str, @fg[3], @bg[3])
     else
       left_str = str[0, (str.length * percent).floor].to_s
       if (@fg[1] or @bg[1]) and (left_str.length < str.length) and (((left_str.length + 0.5) * (1 / str.length.to_f)) < percent)
@@ -73,23 +74,28 @@ class ProgressWindow < BaseWindow
       end
       right_str = str[(left_str.length + middle_str.length), (@label.length + (maxx - @label.length))].to_s
       setpos(0, 0)
-      unless left_str.empty?
-        attron(Curses.color_pair(get_color_pair_id(@fg[0], @bg[0])) | Curses::A_NORMAL) do
-          addstr left_str
-        end
-      end
-      unless middle_str.empty?
-        attron(Curses.color_pair(get_color_pair_id(@fg[1], @bg[1])) | Curses::A_NORMAL) do
-          addstr middle_str
-        end
-      end
-      unless right_str.empty?
-        attron(Curses.color_pair(get_color_pair_id(@fg[2], @bg[2])) | Curses::A_NORMAL) do
-          addstr right_str
-        end
-      end
+      render_colored(left_str, @fg[0], @bg[0]) unless left_str.empty?
+      render_colored(middle_str, @fg[1], @bg[1]) unless middle_str.empty?
+      render_colored(right_str, @fg[2], @bg[2]) unless right_str.empty?
     end
     noutrefresh
     true
   end
+end
+
+BaseWindow.register_type('progress') do |height, width, top, left, element, wm|
+  if element.attributes['value'] && (window = wm.previous_progress[element.attributes['value']])
+    wm.previous_progress[element.attributes['value']] = nil
+    wm.old_windows.delete(window)
+  else
+    window = ProgressWindow.new(height, width, top, left)
+  end
+  window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
+  window.scrollok(false)
+  window.label = element.attributes['label'] if element.attributes['label']
+  window.fg = parse_color_attrs(element, 'fg') if element.attributes['fg']
+  window.bg = parse_color_attrs(element, 'bg') if element.attributes['bg']
+  wm.progress[element.attributes['value']] = window if element.attributes['value']
+  window.redraw
+  window
 end

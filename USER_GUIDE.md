@@ -117,18 +117,27 @@ yourself** -- it is not generated automatically.
 The `~/.profanity/` directory is created automatically on first run. This is
 where your personal per-character configuration files live.
 
-The included `mahtra.xml` (in the `templates/` subfolder) is an **example
-configuration** with a complete layout, extensive highlights, gag patterns, and
-key bindings for DragonRealms. It is a real player's configuration and serves as
-a reference. **Do not use it as-is** -- copy it and customize it for your own
-character, terminal size, and preferences:
+### Included Templates
+
+The `templates/` subfolder contains example configurations you can use as
+starting points. **Do not use them as-is** -- copy one and customize it for
+your own character, terminal size, and preferences:
 
 ```bash
 cp templates/mahtra.xml ~/.profanity/mychar.xml
 ```
 
-Then edit `~/.profanity/mychar.xml` to suit your needs. At minimum you'll want
-to:
+Available templates:
+
+| Template | Game | Description |
+|----------|------|-------------|
+| `default.xml` | DR | Full-featured DragonRealms layout with tabbed windows, room display, combat gags, and spell abbreviations. The recommended starting point for DR players. |
+| `mahtra.xml` | DR | A real DR player's configuration — same as default.xml but serves as a named-character example. |
+| `original.xml` | GS | Minimal GemStone IV baseline — simple 3-window layout with basic highlights. Good clean starting point for GS players. |
+| `tysong.xml` | GS | GemStone IV 1080p template with character class highlighting (Empath, Wizard, Cleric, Ranger, Sorcerer name lists). |
+| `eleazzar.xml` | GS | Advanced GemStone IV template requiring nerd fonts and effectmon.lic/targetlist.lic scripts. Three-column layout with buff/debuff panels. |
+
+After copying, edit the file to suit your needs. At minimum you'll want to:
 - Adjust the layout dimensions for your terminal size
 - Customize highlight patterns for your character's guild and hunting areas
 - Remove gag patterns for creatures you don't fight

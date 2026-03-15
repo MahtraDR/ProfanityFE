@@ -255,3 +255,26 @@ class TextWindow < BaseWindow
     add_line(post_text, post_colors)
   end
 end
+
+BaseWindow.register_type('text') do |height, width, top, left, element, wm|
+  next nil unless width > 1
+
+  if element.attributes['value'] && (window = wm.previous_stream[wm.previous_stream.keys.find do |key|
+    element.attributes['value'].split(',').include?(key)
+  end])
+    wm.previous_stream[element.attributes['value']] = nil
+    wm.old_windows.delete(window)
+  else
+    window = TextWindow.new(height, width - 1, top, left)
+    window.scrollbar = Curses::Window.new(window.maxy, 1, window.begy, window.begx + window.maxx)
+  end
+  window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
+  window.scrollok(true)
+  window.max_buffer_size = element.attributes['buffer-size'] || 1000
+  window.time_stamp = element.attributes['timestamp']
+  element.attributes['value'].split(',').each do |str|
+    wm.stream[str] = window
+  end
+  SCROLL_WINDOW.push(window)
+  window
+end

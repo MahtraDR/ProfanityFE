@@ -22,6 +22,7 @@ module ColorManager
   @color_pair_id_lookup = {}
   @color_pair_history = []
   @color_code = nil
+  @color_mutex = Mutex.new
 
   class << self
     attr_accessor :default_color_id, :default_background_color_id,
@@ -96,18 +97,19 @@ module ColorManager
       if (color_id = @color_id_lookup[code])
         color_id
       elsif @custom_colors
-        color_id = @color_id_history.shift
-        @color_id_lookup.delete_if { |_k, v| v == color_id }
-        # WORKAROUND: Curses.init_color fails intermittently without a small delay.
-        # This appears to be a race condition in ncurses color initialization.
-        sleep 0.01
-        Curses.init_color(color_id,
-                          ((code[0..1].to_s.hex / 255.0) * 1000).round,
-                          ((code[2..3].to_s.hex / 255.0) * 1000).round,
-                          ((code[4..5].to_s.hex / 255.0) * 1000).round)
-        @color_id_lookup[code] = color_id
-        @color_id_history.push(color_id)
-        color_id
+        @color_mutex.synchronize do
+          color_id = @color_id_history.shift
+          @color_id_lookup.delete_if { |_k, v| v == color_id }
+          # ncurses init_color/init_pair needs a small delay between calls
+          sleep 0.01
+          Curses.init_color(color_id,
+                            ((code[0..1].to_s.hex / 255.0) * 1000).round,
+                            ((code[2..3].to_s.hex / 255.0) * 1000).round,
+                            ((code[4..5].to_s.hex / 255.0) * 1000).round)
+          @color_id_lookup[code] = color_id
+          @color_id_history.push(color_id)
+          color_id
+        end
       else
         # Find closest match in fixed color palette
         least_error = nil
@@ -139,14 +141,17 @@ module ColorManager
       if @color_pair_id_lookup[fg_id] && (color_pair_id = @color_pair_id_lookup[fg_id][bg_id])
         color_pair_id
       else
-        color_pair_id = @color_pair_history.shift
-        @color_pair_id_lookup.each { |_w, x| x.delete_if { |_y, z| z == color_pair_id } }
-        sleep 0.01
-        Curses.init_pair(color_pair_id, fg_id, bg_id)
-        @color_pair_id_lookup[fg_id] ||= {}
-        @color_pair_id_lookup[fg_id][bg_id] = color_pair_id
-        @color_pair_history.push(color_pair_id)
-        color_pair_id
+        @color_mutex.synchronize do
+          color_pair_id = @color_pair_history.shift
+          @color_pair_id_lookup.each { |_w, x| x.delete_if { |_y, z| z == color_pair_id } }
+          # ncurses init_color/init_pair needs a small delay between calls
+          sleep 0.01
+          Curses.init_pair(color_pair_id, fg_id, bg_id)
+          @color_pair_id_lookup[fg_id] ||= {}
+          @color_pair_id_lookup[fg_id][bg_id] = color_pair_id
+          @color_pair_history.push(color_pair_id)
+          color_pair_id
+        end
       end
     end
   end

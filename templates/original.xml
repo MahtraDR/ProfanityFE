@@ -83,6 +83,7 @@
 
   <!-- GS-specific macros -->
   <key id='alt'>
+    <!-- Placeholder: replace 'something' with your own Alt+F macro command -->
     <key id='f' macro='something'/>
   </key>
 

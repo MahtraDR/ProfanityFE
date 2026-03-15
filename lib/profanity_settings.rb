@@ -142,7 +142,8 @@ module ProfanitySettings
     return nil unless File.exist?(path)
 
     JSON.parse(read(path))
-  rescue JSON::ParserError
+  rescue JSON::ParserError => e
+    ProfanityLog.write('settings', "Failed to parse settings.json: #{e.message}")
     nil
   end
 

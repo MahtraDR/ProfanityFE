@@ -406,3 +406,23 @@ class TabbedTextWindow < BaseWindow
     lines.join("\n")
   end
 end
+
+BaseWindow.register_type('tabbed') do |height, width, top, left, element, wm|
+  next nil unless width > 1
+
+  window = TabbedTextWindow.new(height, width - 1, top, left)
+  window.scrollbar = Curses::Window.new(window.maxy, 1, window.begy, window.begx + window.maxx)
+  window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
+  window.scrollok(true)
+  window.setscrreg(1, window.maxy - 1)
+  window.max_buffer_size = element.attributes['buffer-size'] || 1000
+  window.time_stamp = element.attributes['timestamp']
+  tab_names = (element.attributes['tabs'] || element.attributes['value'] || MAIN_STREAM).split(',')
+  tab_names.each do |tab_name|
+    window.add_tab(tab_name.strip)
+    wm.stream[tab_name.strip] = window
+  end
+  window.redraw
+  SCROLL_WINDOW.push(window)
+  window
+end

@@ -292,3 +292,14 @@ class RoomWindow < BaseWindow
     end
   end
 end
+
+BaseWindow.register_type('room') do |height, width, top, left, element, wm|
+  window = RoomWindow.new(height, width, top, left)
+  window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
+  window.scrollok(false)
+  window.title_preset = element.attributes['title-preset'] || 'roomName'
+  window.desc_preset = element.attributes['desc-preset']
+  window.creatures_preset = element.attributes['creatures-preset'] || 'monsterbold'
+  wm.room['room'] = window
+  window
+end

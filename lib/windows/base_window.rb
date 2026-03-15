@@ -306,6 +306,44 @@ class BaseWindow < Curses::Window
     ''
   end
 
+  # Render text at the current cursor position using indexed fg/bg color arrays.
+  #
+  # @param text [String] text to render
+  # @param fg_code [String, nil] foreground hex color code
+  # @param bg_code [String, nil] background hex color code
+  # @return [void]
+  protected def render_colored(text, fg_code, bg_code)
+    attron(Curses.color_pair(get_color_pair_id(fg_code, bg_code)) | Curses::A_NORMAL) do
+      addstr text
+    end
+  end
+
+  # --- Window type registry (OCP: new types register themselves) ---
+
+  # Registry mapping XML class names to window builder procs.
+  # Each builder proc receives (height, width, top, left, element, window_manager)
+  # and returns a configured window (or nil).
+  #
+  # @return [Hash<String, Proc>]
+  def self.type_registry
+    @type_registry ||= {}
+  end
+
+  # Register a window type by its XML class name.
+  #
+  # @param xml_class [String] the value of class='...' in layout XML
+  # @yield [height, width, top, left, element, wm] builder block
+  # @yieldparam height [Integer] computed window height
+  # @yieldparam width [Integer] computed window width
+  # @yieldparam top [Integer] computed top position
+  # @yieldparam left [Integer] computed left position
+  # @yieldparam element [REXML::Element] the XML element for this window
+  # @yieldparam wm [WindowManager] the window manager instance
+  # @return [void]
+  def self.register_type(xml_class, &builder)
+    type_registry[xml_class] = builder
+  end
+
   # --- Window class registry ---
 
   # All registered window subclasses.

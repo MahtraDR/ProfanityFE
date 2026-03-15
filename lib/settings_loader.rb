@@ -97,8 +97,7 @@ module SettingsLoader
       end
     end
   rescue StandardError => e
-    $stdout.puts e
-    $stdout.puts e.backtrace[0..1]
+    ProfanityLog.write('settings', e.message, backtrace: e.backtrace)
   end
 
   # Build the recursive key binding setup proc.
