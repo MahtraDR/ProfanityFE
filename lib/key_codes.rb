@@ -83,6 +83,8 @@ KEY_NAME = {
   'alt+right'     => 552,
   'ctrl+right'    => 554,
   'alt+up'        => 558,
+  'shift+down'    => 336,
+  'shift+up'      => 337,
   'ctrl+up'       => 560,
   # Alt+number for tab switching (alt + escape sequence)
   'alt+1'         => [27, 49],  # ESC + '1'
