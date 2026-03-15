@@ -21,23 +21,23 @@
 
   Layout diagram (1920x1080 maximized, monospace 12):
 
-    +--col 0---------col 118-----col 119-----------col 233--+
+    +==col 0=========col 118=====col 119===========col 233==+
     |                 |                                      |
     | familiar /      | lnet / thoughts / voln               |
     | announcements   | (chat streams)                       |
     | (12 rows)       | (12 rows)                            |
     |                 |                                      |
-    +row 14-----------+--------------------------------------+
+    +row 14===========+======================================+
     |death  |         Main game text                         |
     |(7h)   |         (37 rows x 140 cols)                   |
-    +-------+                                    +-----------+
+    +=======+                                    +===========+
     |logons |                                    | speech    |
     |(8h)   |                                    | (30h)     |
     |       |                                    |           |
-    +---+---+------------------------------------+-----------+
+    +===+===+====================================+===========+
     |   | Body diagram / compass / vitals        |           |
     | > | [command input]                        |           |
-    +---+----------------------------------------+-----------+
+    +===+========================================+===========+
 
     Left sidebar (cols 0-19):
       - Injury body diagram (ASCII stick figure, wound severity colors)
@@ -47,7 +47,7 @@
       - Encumbrance bar
       - Stun / roundtime countdown bars
 
-  To use:  profanity.rb --template=tysong.xml --char=YourName
+  To use:  profanity.rb  template=tysong.xml  char=YourName
 
   NOTE: This template contains GemStone IV-specific highlight patterns.
         DragonRealms players should use mahtra.xml or default.xml instead.
@@ -194,9 +194,9 @@
        HIGHLIGHTS — Lich output, raffle, and misc game info
        ================================================================ -->
 
-  <!-- Lich framework output (e.g., "--- Lich: loading script...") -->
+  <!-- Lich framework output (e.g., "=== Lich: loading script...") -->
   <highlight fg='008000'>^---\sLich:.*</highlight>
-  <!-- Raffle notifications — red-on-black for attention -->
+  <!-- Raffle notifications: red-on-black for attention -->
   <highlight fg='ff0000' bg='000000'>
     \braffle\b|You\ssense\syou\shave\sjust\swon\sa\sraffle\sfor
   </highlight>
@@ -353,20 +353,20 @@
 
        This gives approximately 234 columns x 55 rows.
 
-       +--col 0---------col 19-col 20--------col 159-col 160------col 233-+
+       +==col 0=========col 19=col 20========col 159=col 160======col 233=+
        |                 |                            |                    |
        | familiar /      |  lnet / thoughts / voln    |                    |
        | announcements   |  (chat window, 12 rows)    |                    |
        | (12 rows)       |                            |                    |
-       +-row 13----------+----------------------------+--------------------+
+       +=row 13==========+============================+====================+
        | death   |                                    |                    |
        | stream  |  Main game text                    | speech             |
        | (7 rows)|  (37 rows x 140 cols)              | (30 rows)          |
-       +---------+                                    |                    |
+       +=========+                                    |                    |
        | logon   |                                    |                    |
        | stream  |                                    |                    |
        | (8 rows)|                                    |                    |
-       +---------+------------------------------------+--------------------+
+       +=========+====================================+====================+
        |         |                                                         |
        | Body    |  (injury body diagram, compass, vitals occupy           |
        | diagram |   the left sidebar below the streams)                   |
@@ -374,7 +374,7 @@
        | Compass |                                                         |
        | Vitals  |                                                         |
        | RT/Stun |                                                         |
-       +---------+-[> command input ]--------------------------------------+
+       +=========+=[> command input ]======================================+
 
        Left sidebar (cols 0-19):
          Row lines-23 to lines-17: ASCII body diagram (injury indicators)

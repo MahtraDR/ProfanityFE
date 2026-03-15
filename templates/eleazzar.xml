@@ -128,7 +128,7 @@
   -->
 
   <!--Lich-->
-  <!-- Lich framework banner lines (--- Lich: ...) -->
+  <!-- Lich framework banner lines (=== Lich: ...) -->
   <highlight fg='555555'>^---\sLich:.*</highlight>
   <!-- Script output lines: [scriptname]> ... -->
   <highlight fg='555555'>^\[.*?\](?:>|&gt;).*$</highlight>
@@ -328,29 +328,29 @@
 
        col:  0              44  45                         158  160          189
        row:
-        0    +--Speech-------+  +--Room--------------------------+  +--Buffs-----+
+        0    +==Speech=======+  +==Room==========================+  +==Buffs=====+
         1    |               |  |                                |  | buff0..9   |
         :    | speech,       |  | room description               |  |            |
-        :    | announcements,|  | (10 rows)                      |  +--Debuffs---+
+        :    | announcements,|  | (10 rows)                      |  +==Debuffs===+
        10    | lnet, thoughts|  |                                |  | debuff0..1 |
-       11    | voln          |  +--Main---------------------------+  +--Cooldowns-+
+       11    | voln          |  +==Main===========================+  +==Cooldowns=+
        12    |               |  |                                |  | cooldown0..|
-        :    | (scrollable)  |  | main text + familiar           |  +--Spells----+
+        :    | (scrollable)  |  | main text + familiar           |  +==Spells====+
         :    |               |  | (scrollable, 4000 line buffer) |  | spell0..29 |
         :    |               |  |                                |  |            |
-       L-14  +--Targets------+  |                                |  |            |
+       L-14  +==Targets======+  |                                |  |            |
        L-13  | combat/target |  |                                |  |            |
        L-12  | (3 rows)      |  |                                |  |            |
-       L-10  +--Status-------+  |                                |  |            |
+       L-10  +==Status=======+  |                                |  |            |
        L-9   | [compass] [body] [bars: stance/HP/SP/mana/stam]  |  |            |
        L-8   | [  rose ] [diag] [      health/spirit/mana   ]   |  |            |
        L-7   | [       ] [    ] [      stamina/stun/RT      ]   |  |            |
        L-6   |                  [encumbrance / mind         ]   |  |            |
        L-5   |               |  |                                |  |            |
        L-3   | [poison][disease][bleed]                          |  |            |
-       L-2   +--Hands--------+  +--Command-----------------------+  |            |
+       L-2   +==Hands========+  +==Command=======================+  |            |
        L-1   |[L hand][R hand]  > [command input line]           |  |            |
-             +---------------+  +--------------------------------+  +------------+
+             +===============+  +================================+  +============+
 
        Left panel (cols 0-44):
          - Speech window: chat, announcements, lnet, thoughts, voln

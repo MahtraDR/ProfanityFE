@@ -49,7 +49,7 @@ module SettingsLoader
       GagPatterns.clear_custom if reload
 
       File.open(filename) do |file|
-        xml_doc = REXML::Document.new(file)
+        xml_doc = REXML::Document.new(sanitize_xml_comments(file.read))
         xml_root = xml_doc.root
         xml_root.elements.each do |e|
           case e.name
@@ -100,6 +100,23 @@ module SettingsLoader
     ProfanityLog.write('settings', e.message, backtrace: e.backtrace)
   end
 
+  # Replace '--' inside XML comments with '~~' to avoid REXML parse errors.
+  # The XML spec forbids '--' inside comments; older templates may contain it.
+  #
+  # @param xml_string [String] raw XML content
+  # @return [String] sanitized XML content
+  # @api private
+  def sanitize_xml_comments(xml_string)
+    xml_string.gsub(/<!--(.*?)-->/m) do |match|
+      body = Regexp.last_match(1)
+      if body.include?('--')
+        "<!--#{body.gsub('--', '~~')}-->"
+      else
+        match
+      end
+    end
+  end
+
   # Build the recursive key binding setup proc.
   #
   # Returns a proc that processes a +<key>+ XML element and populates the
@@ -115,7 +132,8 @@ module SettingsLoader
   # @return [Proc] a proc accepting (xml_element, binding_hash) that populates bindings
   # @api private
   def build_setup_key(key_action, do_macro)
-    proc { |xml, binding|
+    setup_key = nil
+    setup_key = proc { |xml, binding|
       if (key = xml.attributes['id'])
         if key =~ /^[0-9]+$/
           key = key.to_i
@@ -139,6 +157,11 @@ module SettingsLoader
                 current_binding[final_key] = action
               else
                 ProfanityLog.write('settings', "Unknown action '#{xml.attributes['action']}' for key '#{xml.attributes['id']}'")
+              end
+            else
+              current_binding[final_key] ||= {}
+              xml.elements.each do |e|
+                setup_key.call(e, current_binding[final_key])
               end
             end
           elsif (macro = xml.attributes['macro'])

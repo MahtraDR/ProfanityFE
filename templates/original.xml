@@ -14,7 +14,7 @@
     - Left sidebar: death notices + logon/logoff — 11 cols
     - Main area: game text — remaining space
 
-  To use:  profanity.rb --template=original.xml --char=YourName
+  To use:  profanity.rb  template=original.xml  char=YourName
 
   NOTE: This template contains GemStone IV-specific highlight patterns.
         DragonRealms players should use mahtra.xml or default.xml instead.
@@ -143,17 +143,17 @@
        ================================================================
        Simple 3-window layout. Adapts to terminal size via expressions.
 
-       +-------------------------------------------+
+       +===========================================+
        | Chat: lnet, thoughts, voln    (6 rows)    |
-       +-----+-------------------------------------+
+       +=====+=====================================+
        |death| Main game text                      |
        |logon|                                     |
        |     | (fills remaining space)             |
-       +-----+-------------------------------------+
+       +=====+=====================================+
        |> [command input]                          |
-       +-------------------------------------------+
+       +===========================================+
        | Progress bars, compass, injury indicators |
-       +-------------------------------------------+
+       +===========================================+
   -->
   <layout id='default'>
     <!-- Chat strip across the top -->
