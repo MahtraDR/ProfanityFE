@@ -384,8 +384,8 @@ do_macro = proc { |macro|
 #   .tab               List all tabs in tabbed windows (active tab marked *).
 #   .tab <number>      Switch to tab by 1-based index.
 #   .tab <name>        Switch to tab by name.
-#   .arrow             Toggle up/down arrow keys between command history
-#                      navigation and page scrolling.
+#   .arrow             Cycle up/down arrow keys through three modes:
+#                      history (default) -> page scroll -> line scroll.
 #   .help              Show this list of dot-commands.
 #
 # All dot-commands are case-insensitive.
@@ -400,7 +400,7 @@ DOT_COMMAND_HELP = [
   '.resize            Recalculate window sizes for terminal',
   '.tab               List tabs (active marked with *)',
   '.tab <N|name>      Switch tab by number or name',
-  '.arrow             Toggle arrow keys: history vs scroll',
+  '.arrow             Cycle arrow keys: history/page/line',
   '.links             Toggle in-game link highlighting',
   '.scrollcfg         Configure mouse scroll wheel',
   '.help              Show this help'
@@ -455,6 +455,17 @@ execute_command = proc { |cmd|
     end
   elsif cmd =~ /^\.arrow/i
     key_action['switch_arrow_mode'].call
+    if (window = window_mgr.stream[MAIN_STREAM])
+      mode = if key_binding[Curses::KEY_UP] == key_action['previous_command']
+               'history'
+             elsif key_binding[Curses::KEY_UP] == key_action['scroll_current_window_up_page']
+               'page scroll'
+             else
+               'line scroll'
+             end
+      window.add_string("* Arrow mode: #{mode}")
+      Curses.doupdate
+    end
   elsif cmd =~ /^\.links/i
     blue_links = !blue_links
     if (window = window_mgr.stream[MAIN_STREAM])
@@ -640,6 +651,9 @@ key_action['switch_arrow_mode'] = proc {
   if key_binding[Curses::KEY_UP] == key_action['previous_command']
     key_binding[Curses::KEY_UP] = key_action['scroll_current_window_up_page']
     key_binding[Curses::KEY_DOWN] = key_action['scroll_current_window_down_page']
+  elsif key_binding[Curses::KEY_UP] == key_action['scroll_current_window_up_page']
+    key_binding[Curses::KEY_UP] = key_action['scroll_current_window_up_one']
+    key_binding[Curses::KEY_DOWN] = key_action['scroll_current_window_down_one']
   else
     key_binding[Curses::KEY_UP] = key_action['previous_command']
     key_binding[Curses::KEY_DOWN] = key_action['next_command']

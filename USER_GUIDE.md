@@ -966,7 +966,7 @@ Actions are predefined behaviors that can be bound to keys:
 | `scroll_current_window_down_page` | Scroll the focused window down by one page |
 | `scroll_current_window_bottom` | Scroll the focused window to the bottom (newest content) |
 | `resize` | Manually recalculate all window positions and sizes |
-| `switch_arrow_mode` | Toggle up/down arrows between command history and page scrolling |
+| `switch_arrow_mode` | Cycle up/down arrows through history, page scroll, and line scroll modes |
 
 **Tab management:**
 
@@ -1334,10 +1334,14 @@ When listing tabs, output looks like: `* Tabs: 1:main* 2:combat 3:thoughts`
 
 ### .arrow
 
-Toggle the up/down arrow keys between two modes:
+Cycle the up/down arrow keys through three modes:
 
 - **History mode** (default): Up/Down navigate command history.
-- **Scroll mode**: Up/Down scroll the focused window by one page.
+- **Page scroll mode**: Up/Down scroll the focused window by one page.
+- **Line scroll mode**: Up/Down scroll the focused window by one line.
+
+Each invocation advances to the next mode (history → page → line → history).
+The current mode is displayed in the main window after each switch.
 
 ```
 .arrow
