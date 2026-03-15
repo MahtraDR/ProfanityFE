@@ -301,10 +301,13 @@ window_mgr = WindowManager.new
 key_binding = {}
 key_action = {}
 
+# Color helper for ProfanityFE feedback messages (dot-commands, status, etc.)
+feedback_colors = ->(text) { [{ start: 0, end: text.length, fg: FEEDBACK_COLOR, bg: nil, ul: nil }] }
+
 # Mouse scroll wheel support
 write_to_client = proc { |text|
   if (window = window_mgr.stream[MAIN_STREAM])
-    window.add_string(text, [{ fg: Autocomplete::HIGHLIGHT_COLOR, start: 0, end: text.length }])
+    window.add_string(text, feedback_colors.call(text))
     cmd_buffer.refresh
     Curses.doupdate
   end
@@ -414,12 +417,14 @@ execute_command = proc { |cmd|
   elsif cmd =~ /^\.key/i
     # Display raw keycode of next key press (debugging aid for key bindings)
     if (window = window_mgr.stream[MAIN_STREAM])
-      window.add_string('* ')
-      window.add_string('* Waiting for key press...')
+      msg = '* Waiting for key press...'
+      window.add_string('* ', feedback_colors.call('* '))
+      window.add_string(msg, feedback_colors.call(msg))
       cmd_buffer.refresh
       Curses.doupdate
-      window.add_string("* Detected keycode: #{cmd_buffer.window.getch}")
-      window.add_string('* ')
+      msg = "* Detected keycode: #{cmd_buffer.window.getch}"
+      window.add_string(msg, feedback_colors.call(msg))
+      window.add_string('* ', feedback_colors.call('* '))
       Curses.doupdate
     end
   elsif cmd =~ /^\.fixcolor/i
@@ -437,14 +442,16 @@ execute_command = proc { |cmd|
   elsif (match = cmd.match(/^\.tab(?:\s+(?<arg>.+))?/i))
     arg = match[:arg]&.strip
     if TabbedTextWindow.list.empty?
-      window_mgr.stream[MAIN_STREAM]&.add_string('* No tabbed windows configured')
+      msg = '* No tabbed windows configured'
+      window_mgr.stream[MAIN_STREAM]&.add_string(msg, feedback_colors.call(msg))
     elsif arg.nil? || arg.empty?
       # List all tabs with active marked by *
       TabbedTextWindow.list.each do |win|
         tabs_info = win.tabs.keys.each_with_index.map do |name, i|
           "#{i + 1}:#{name}#{name == win.active_tab ? '*' : ''}"
         end.join(' ')
-        window_mgr.stream[MAIN_STREAM]&.add_string("* Tabs: #{tabs_info}")
+        msg = "* Tabs: #{tabs_info}"
+        window_mgr.stream[MAIN_STREAM]&.add_string(msg, feedback_colors.call(msg))
       end
     elsif arg =~ /^\d+$/
       TabbedTextWindow.list.each { |w| w.switch_tab_by_index(arg.to_i) }
@@ -464,22 +471,23 @@ execute_command = proc { |cmd|
                'line scroll'
              end
       msg = "* Arrow mode: #{mode}"
-      window.add_string(msg, [{ start: 0, end: msg.length, fg: '00ffff', bg: nil, ul: nil }])
+      window.add_string(msg, feedback_colors.call(msg))
       Curses.doupdate
     end
   elsif cmd =~ /^\.links/i
     blue_links = !blue_links
     if (window = window_mgr.stream[MAIN_STREAM])
-      window.add_string("* Links display: #{blue_links ? 'ON' : 'OFF'}")
+      msg = "* Links display: #{blue_links ? 'ON' : 'OFF'}"
+      window.add_string(msg, feedback_colors.call(msg))
       Curses.doupdate
     end
   elsif cmd =~ /^\.scrollcfg/i
     mouse_scroll.start_configuration
   elsif cmd =~ /^\.help/i
     if (window = window_mgr.stream[MAIN_STREAM])
-      window.add_string('* ')
-      DOT_COMMAND_HELP.each { |line| window.add_string("*   #{line}") }
-      window.add_string('* ')
+      window.add_string('* ', feedback_colors.call('* '))
+      DOT_COMMAND_HELP.each { |line| msg = "*   #{line}"; window.add_string(msg, feedback_colors.call(msg)) }
+      window.add_string('* ', feedback_colors.call('* '))
       Curses.doupdate
     end
   else

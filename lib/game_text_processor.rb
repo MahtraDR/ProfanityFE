@@ -453,27 +453,13 @@ class GameTextProcessor
       end
     end
     # After loop exits (connection closed):
-    @wm.stream[MAIN_STREAM].add_string ' *'.dup
-    @wm.stream[MAIN_STREAM].add_string ' * Connection closed'.dup
-    @wm.stream[MAIN_STREAM].add_string ' * Press any key to exit...'.dup
-    @wm.stream[MAIN_STREAM].add_string ' *'.dup
-    CURSES_MUTEX.synchronize do
-      @cmd_buffer.window&.noutrefresh
-      Curses.doupdate
-    end
+    show_disconnect_message
     @cmd_buffer.window&.getch
     exit
   rescue IOError => e
     # Normal disconnect — socket closed by another thread (e.g., Lich shutdown)
     ProfanityLog.write('game_text_processor', "disconnected: #{e.message}")
-    @wm.stream[MAIN_STREAM]&.add_string ' *'.dup
-    @wm.stream[MAIN_STREAM]&.add_string ' * Connection closed'.dup
-    @wm.stream[MAIN_STREAM]&.add_string ' * Press any key to exit...'.dup
-    @wm.stream[MAIN_STREAM]&.add_string ' *'.dup
-    CURSES_MUTEX.synchronize do
-      @cmd_buffer.window&.noutrefresh
-      Curses.doupdate
-    end
+    show_disconnect_message
     @cmd_buffer.window&.getch
     exit
   rescue StandardError => e
@@ -482,6 +468,19 @@ class GameTextProcessor
   end
 
   private
+
+  def show_disconnect_message
+    window = @wm.stream[MAIN_STREAM]
+    return unless window
+
+    ['* ', '* Connection closed', '* Press any key to exit...', '* '].each do |msg|
+      window.add_string(msg, [{ start: 0, end: msg.length, fg: FEEDBACK_COLOR, bg: nil, ul: nil }])
+    end
+    CURSES_MUTEX.synchronize do
+      @cmd_buffer.window&.noutrefresh
+      Curses.doupdate
+    end
+  end
 
   # Evaluate a layout dimension string to an integer, substituting
   # Curses terminal dimensions for the tokens "lines" and "cols".

@@ -55,3 +55,6 @@ ROOM_OBJECTS = []
 # Used for percWindow text transformations (spell display abbreviations, etc.)
 # Example XML: <perc-transform pattern=" (roisaen|roisan)" replace=""/>
 PERC_TRANSFORMS = []
+
+# @return [String] hex color for all ProfanityFE feedback messages (dot-commands, status, etc.)
+FEEDBACK_COLOR = 'ffff00'
