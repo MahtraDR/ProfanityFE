@@ -9,18 +9,27 @@
 # percentage-based effects, and the "Fading" state each receive a
 # fixed sort weight so the most important entries appear at the top.
 class PercWindow < BaseWindow
+  # Create a new active spells window.
+  #
+  # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
     @spells = {}
     @indent_word_wrap = true
     super
   end
 
-  # Phase 3 selection support
+  # Return the spells hash as buffer entries for selection support.
+  #
+  # @return [Array<Array(String, Array<Hash>)>] spell text/color pairs
   def buffer_content
     @spells.to_a
   end
 
-  # Override to add newline after each spell line and refresh
+  # Render a spell line with a trailing newline and immediate refresh.
+  #
+  # @param line [String] the spell/effect text
+  # @param line_colors [Array<Hash>] color region descriptors
+  # @return [void]
   def add_line(line, line_colors = [])
     super(line, line_colors, newline: true, refresh: true)
   end
@@ -64,10 +73,7 @@ class PercWindow < BaseWindow
         add_line(line, line_colors)
       end
     rescue StandardError => e
-      File.open(LOG_FILE, 'a') do |f|
-        f.puts("Error sorting spells: #{e}")
-        f.puts(e.backtrace[0...BACKTRACE_LIMIT])
-      end
+      ProfanityLog.write('perc_window', "Error sorting spells: #{e}", backtrace: e.backtrace)
     end
     @spells = {}
     noutrefresh

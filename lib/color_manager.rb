@@ -152,7 +152,11 @@ module ColorManager
   end
 end
 
-# Global convenience method for compatibility with existing code
+# Global convenience method for compatibility with existing code.
+#
+# @param fg_code [String, nil] foreground hex color code, or nil for default
+# @param bg_code [String, nil] background hex color code, or nil for default
+# @return [Integer] curses color pair ID
 def get_color_pair_id(fg_code, bg_code)
   ColorManager.get_color_pair_id(fg_code, bg_code)
 end

@@ -18,6 +18,9 @@
 class WindowManager
   attr_reader :command_window, :command_window_layout
 
+  # Create a new window manager with empty handler hashes.
+  #
+  # @return [WindowManager]
   def initialize
     @stream = {}
     @indicator = {}

@@ -20,6 +20,9 @@ class TextWindow < BaseWindow
   # @return [Boolean] whether a timestamp is appended to each non-empty line
   attr_accessor :time_stamp
 
+  # Create a new scrollable text window.
+  #
+  # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
     @buffer = []
     @buffer_pos = 0
@@ -28,7 +31,9 @@ class TextWindow < BaseWindow
     super
   end
 
-  # Phase 3 selection support
+  # Return the line buffer for selection support.
+  #
+  # @return [Array<Array(String, Array<Hash>)>] the line buffer (newest first)
   def buffer_content
     @buffer
   end
@@ -169,7 +174,9 @@ class TextWindow < BaseWindow
     lines.join("\n")
   end
 
-  # Redraw with selection highlight
+  # Redraw all visible lines, applying reverse-video to the selected region.
+  #
+  # @return [void]
   def redraw_with_highlight
     return unless @selection_start && @selection_end
 

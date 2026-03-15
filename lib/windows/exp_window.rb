@@ -8,13 +8,18 @@
 # maintains a sorted skill map. Redraws the full skill list on every
 # update, applying highlights via {HighlightProcessor}.
 class ExpWindow < BaseWindow
+  # Create a new experience window.
+  #
+  # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
     @skills = {}
     @open = false
     super
   end
 
-  # Phase 3 selection support
+  # Return the skill list as buffer entries for selection support.
+  #
+  # @return [Array<Array(String, Array)>] each skill's display text paired with empty colors
   def buffer_content
     @skills.values.map { |skill| [skill.to_s, []] }
   end

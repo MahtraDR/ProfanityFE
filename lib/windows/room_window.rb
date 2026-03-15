@@ -19,6 +19,9 @@ class RoomWindow < BaseWindow
   # @return [String, nil] preset name applied to creature highlight color
   attr_accessor :creatures_preset
 
+  # Create a new room window with empty section fields.
+  #
+  # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
     @title = ''
     @description = ''

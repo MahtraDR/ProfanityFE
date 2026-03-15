@@ -28,42 +28,44 @@ require 'socket'
 require 'rexml/document'
 
 # Load version and initialize curses
-require_relative 'lib/profanity/version'
-require_relative 'lib/profanity/curses_setup'
+require_relative 'lib/version'
+require_relative 'lib/curses_setup'
 
 # Load global constants (HIGHLIGHT, PRESET, LAYOUT, etc.)
-require_relative 'lib/profanity/constants'
+require_relative 'lib/constants'
 
 # Centralized highlight processing (must be loaded before windows)
-require_relative 'lib/profanity/highlight_processor'
+require_relative 'lib/highlight_processor'
 
-# Window classes loaded from lib/profanity/windows/
-require_relative 'lib/profanity/windows/base_window'
-require_relative 'lib/profanity/windows/skill'
-require_relative 'lib/profanity/windows/exp_window'
-require_relative 'lib/profanity/windows/perc_window'
-require_relative 'lib/profanity/windows/text_window'
-require_relative 'lib/profanity/windows/tabbed_text_window'
-require_relative 'lib/profanity/windows/progress_window'
-require_relative 'lib/profanity/windows/countdown_window'
-require_relative 'lib/profanity/windows/indicator_window'
-require_relative 'lib/profanity/windows/sink_window'
-require_relative 'lib/profanity/windows/room_window'
-require_relative 'lib/profanity/key_codes'
-require_relative 'lib/profanity/color_manager'
-require_relative 'lib/profanity/selection_manager'
-require_relative 'lib/profanity/gag_patterns'
+# Window classes loaded from lib/windows/
+require_relative 'lib/windows/base_window'
+require_relative 'lib/windows/skill'
+require_relative 'lib/windows/exp_window'
+require_relative 'lib/windows/perc_window'
+require_relative 'lib/windows/text_window'
+require_relative 'lib/windows/tabbed_text_window'
+require_relative 'lib/windows/progress_window'
+require_relative 'lib/windows/countdown_window'
+require_relative 'lib/windows/indicator_window'
+require_relative 'lib/windows/sink_window'
+require_relative 'lib/windows/room_window'
+require_relative 'lib/key_codes'
+require_relative 'lib/color_manager'
+require_relative 'lib/selection_manager'
+require_relative 'lib/gag_patterns'
 
 # Extracted modules (SRP decomposition)
-require_relative 'lib/profanity/shared_state'
-require_relative 'lib/profanity/kill_ring'
-require_relative 'lib/profanity/command_buffer'
-require_relative 'lib/profanity/window_manager'
-require_relative 'lib/profanity/settings_loader'
-require_relative 'lib/profanity/game_text_processor'
-require_relative 'lib/profanity/profanity_settings'
-require_relative 'lib/profanity/autocomplete'
-require_relative 'lib/profanity/mouse_scroll'
+require_relative 'lib/shared_state'
+require_relative 'lib/kill_ring'
+require_relative 'lib/string_classification'
+require_relative 'lib/profanity_log'
+require_relative 'lib/command_buffer'
+require_relative 'lib/window_manager'
+require_relative 'lib/settings_loader'
+require_relative 'lib/game_text_processor'
+require_relative 'lib/profanity_settings'
+require_relative 'lib/autocomplete'
+require_relative 'lib/mouse_scroll'
 
 # Initialize gag patterns with defaults (can be extended via XML config)
 GagPatterns.load_defaults
@@ -75,7 +77,13 @@ rescue StandardError
   nil
 end
 
-# Parse fg/bg color attributes from XML layout element (DRY helper)
+# Parse fg/bg color attributes from an XML layout element.
+# Splits a comma-separated attribute value into an array, converting
+# the string 'nil' to actual nil.
+#
+# @param element [REXML::Element] XML element containing the attribute
+# @param attr_name [String] attribute name to parse (e.g. 'fg', 'bg')
+# @return [Array<String, nil>, nil] parsed color values, or nil if attribute absent
 def parse_color_attrs(element, attr_name)
   return unless element.attributes[attr_name]
 
@@ -84,7 +92,11 @@ def parse_color_attrs(element, attr_name)
   end
 end
 
-# Extract player names from "Also here: ..." text (DRY helper)
+# Extract player names from "Also here: ..." room text.
+# Strips status descriptions, titles, and grouping to return bare names.
+#
+# @param text [String] raw "Also here: ..." line from the game
+# @return [Array<String>] list of player names
 def parse_player_names(text)
   text.sub(/^Also here:\s*/, '')
       .sub(/ and (?<rest>.*)$/) { ", #{Regexp.last_match[:rest]}" }
@@ -149,6 +161,7 @@ cli_config = nil
 cli_template = nil
 cli_no_status = false
 cli_links = false
+cli_speech_ts = false
 cli_remote_url = nil
 
 ARGV.each do |arg|
@@ -166,6 +179,7 @@ ARGV.each do |arg|
     puts '   --use-default-colors                Use terminal default colors'
     puts '   --no-status                         Disable process title updates'
     puts '   --links                             Enable in-game link highlighting'
+    puts '   --speech-ts                         Add timestamps to speech, familiar, and thought windows'
     puts '   --remote-url=<url>                  Remote game server URL'
     puts '   --log-file=<path>                   Log file path (default: profanity.log)'
     puts '   --log-dir=<dir>                     Log directory (default: current directory)'
@@ -194,6 +208,8 @@ ARGV.each do |arg|
     cli_no_status = true
   elsif arg =~ /^--links$/
     cli_links = true
+  elsif arg =~ /^--speech-ts$/
+    cli_speech_ts = true
   elsif (match = arg.match(/^--remote-url=(?<url>.+)$/))
     cli_remote_url = match[:url]
   elsif (match = arg.match(/^--log-file=(?<file>.+)$/))
@@ -249,6 +265,7 @@ rescue StandardError
 end
 
 NO_STATUS = cli_no_status
+SPEECH_TS = cli_speech_ts
 
 update_process_title(CHAR_NAME || 'ProfanityFE', '')
 
@@ -292,6 +309,10 @@ mouse_scroll = MouseScroll.new(key_action, write_to_client)
 
 # ========== MACRO ENGINE ==========
 
+# Interpret and execute a macro string, inserting characters into the
+# command buffer while handling escape sequences: \\ (literal backslash),
+# \x (clear buffer), \r (send command), \@ (literal @), \? (backfill
+# cursor position). A bare @ marks the final cursor position.
 do_macro = proc { |macro|
   backslash = false
   at_pos = nil
@@ -378,6 +399,8 @@ DOT_COMMAND_HELP = [
   '.help              Show this help'
 ].freeze
 
+# Dispatch a user command. Dot-commands (e.g. .quit, .key, .reload)
+# are handled locally; everything else is forwarded to the game server.
 execute_command = proc { |cmd|
   if cmd =~ /^\.quit/i
     exit
@@ -444,6 +467,8 @@ execute_command = proc { |cmd|
   end
 }
 
+# Re-execute a command from the history buffer at the given index.
+# Echoes the command to the main window before dispatching it.
 send_history_command = proc { |index|
   if (cmd = cmd_buffer.history[index])
     if (window = window_mgr.stream[MAIN_STREAM])
@@ -679,11 +704,7 @@ begin
         screen_x = mouse.x
         bstate = mouse.bstate
 
-        begin
-          File.open(LOG_FILE, 'a') { |f| f.puts "[Mouse] bstate=#{bstate} at (#{screen_y},#{screen_x})" }
-        rescue StandardError
-          warn "[Mouse] bstate=#{bstate} at (#{screen_y},#{screen_x})"
-        end
+        ProfanityLog.write('Mouse', "bstate=#{bstate} at (#{screen_y},#{screen_x})")
 
         if (bstate & Curses::BUTTON1_PRESSED) != 0
           window = BaseWindow.find_window_at(screen_y, screen_x)
@@ -745,15 +766,7 @@ begin
     end
   end
 rescue StandardError => e
-  begin
-    File.open(LOG_FILE, 'a') do |f|
-      f.puts e
-      f.puts e.backtrace[0...BACKTRACE_LIMIT]
-    end
-  rescue StandardError
-    warn e
-    warn e.backtrace[0...BACKTRACE_LIMIT]
-  end
+  ProfanityLog.write('main', e.to_s, backtrace: e.backtrace)
 ensure
   begin
     server.close

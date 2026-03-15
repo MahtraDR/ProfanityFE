@@ -16,6 +16,12 @@ module SelectionManager
   class << self
     attr_reader :active_window, :start_y, :start_x, :end_y, :end_x, :selecting
 
+    # Begin a new text selection at the given window coordinates.
+    #
+    # @param window [TextWindow] the window where selection starts
+    # @param y [Integer] starting row
+    # @param x [Integer] starting column
+    # @return [void]
     def start_selection(window, y, x)
       clear_selection
       @active_window = window
@@ -26,6 +32,11 @@ module SelectionManager
       @selecting = true
     end
 
+    # Extend the current selection to a new endpoint and redraw highlights.
+    #
+    # @param y [Integer] new end row
+    # @param x [Integer] new end column
+    # @return [void]
     def update_selection(y, x)
       return unless @selecting && @active_window
 
@@ -34,6 +45,9 @@ module SelectionManager
       @active_window.highlight_selection(@start_y, @start_x, @end_y, @end_x)
     end
 
+    # Finalize the selection, copy extracted text to the clipboard, and clear highlights.
+    #
+    # @return [void]
     def end_selection
       return unless @selecting && @active_window
 
@@ -42,14 +56,15 @@ module SelectionManager
       if text && !text.empty?
         copy_to_clipboard(text)
       else
-        File.open(LOG_FILE, 'a') do |f|
-          f.puts "[SelectionManager] No text extracted: start=(#{@start_y},#{@start_x}) end=(#{@end_y},#{@end_x})"
-        end
+        ProfanityLog.write('SelectionManager', "No text extracted: start=(#{@start_y},#{@start_x}) end=(#{@end_y},#{@end_x})")
       end
       @active_window.clear_highlight
       clear_selection
     end
 
+    # Reset all selection state and clear any active highlight.
+    #
+    # @return [void]
     def clear_selection
       @active_window&.clear_highlight
       @active_window = nil
@@ -57,6 +72,10 @@ module SelectionManager
       @selecting = false
     end
 
+    # Copy text to the clipboard via file and OSC 52 escape sequence.
+    #
+    # @param text [String] the text to copy
+    # @return [void]
     def copy_to_clipboard(text)
       # Always write to file for SSH/Screen scenarios
       File.write('/tmp/profanity_selection.txt', text)
@@ -66,9 +85,9 @@ module SelectionManager
       print "\e]52;c;#{encoded}\a"
       $stdout.flush
 
-      File.open(LOG_FILE, 'a') { |f| f.puts "[Clipboard] Saved #{text.length} chars to /tmp/profanity_selection.txt" }
+      ProfanityLog.write('Clipboard', "Saved #{text.length} chars to /tmp/profanity_selection.txt")
     rescue StandardError => e
-      File.open(LOG_FILE, 'a') { |f| f.puts "[Clipboard] Error: #{e.message}" }
+      ProfanityLog.write('Clipboard', "Error: #{e.message}")
     end
   end
 end

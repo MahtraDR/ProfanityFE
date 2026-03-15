@@ -19,6 +19,9 @@ class KillRing
   # @return [String] accumulated killed text for yanking
   attr_accessor :buffer
 
+  # Create a new kill ring with empty buffers.
+  #
+  # @return [KillRing]
   def initialize
     @buffer = ''
     @original = ''

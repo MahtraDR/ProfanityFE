@@ -28,6 +28,9 @@ class TabbedTextWindow < BaseWindow
   # @return [Boolean] whether a timestamp is appended to each non-empty line
   attr_accessor :time_stamp
 
+  # Create a new tabbed text window with an empty tab set.
+  #
+  # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
     @tabs = {}              # { "main" => [[line, colors], ...], ... }
     @buffer_positions = {}  # Per-tab scroll positions
@@ -61,11 +64,16 @@ class TabbedTextWindow < BaseWindow
     draw_tab_bar
   end
 
-  # Get current tab's buffer (for compatibility with TextWindow.list operations)
+  # Return the active tab's line buffer for TextWindow-compatible access.
+  #
+  # @return [Array<Array(String, Array<Hash>)>] line buffer of the active tab
   def buffer
     @tabs[@active_tab] || []
   end
 
+  # Return the active tab's scroll offset.
+  #
+  # @return [Integer] number of lines scrolled from the bottom
   def buffer_pos
     @buffer_positions[@active_tab] || 0
   end
@@ -120,7 +128,11 @@ class TabbedTextWindow < BaseWindow
     switch_tab(tab_names[index - 1])
   end
 
-  # Draw the tab bar at the top of the window
+  # Draw the tab bar at the top of the window.
+  # Active tab is rendered with reverse video; background tabs with
+  # unread content show an asterisk (*) activity indicator.
+  #
+  # @return [void]
   def draw_tab_bar
     setpos(0, 0)
     clrtoeol
@@ -326,21 +338,37 @@ class TabbedTextWindow < BaseWindow
     noutrefresh
   end
 
+  # Refresh the scrollbar to reflect the active tab's buffer and scroll state.
+  #
+  # @return [void]
   def update_scrollbar
     return unless @active_tab
 
     render_scrollbar(@tabs[@active_tab].length, @buffer_positions[@active_tab], content_height)
   end
 
+  # Clear (hide) the scrollbar.
+  #
+  # @return [void]
   def clear_scrollbar
     reset_scrollbar
   end
 
-  # Phase 3 selection support
+  # Return the active tab's buffer for selection support.
+  #
+  # @return [Array<Array(String, Array<Hash>)>] line buffer of the active tab
   def buffer_content
     @tabs[@active_tab] || []
   end
 
+  # Extract selected text from the active tab's buffer.
+  # Adjusts coordinates for the tab bar offset before indexing.
+  #
+  # @param start_y [Integer] starting row (window-relative)
+  # @param start_x [Integer] starting column
+  # @param end_y [Integer] ending row (window-relative)
+  # @param end_x [Integer] ending column
+  # @return [String] the selected text, lines joined by newlines
   def extract_selection(start_y, start_x, end_y, end_x)
     start_y -= TAB_BAR_HEIGHT
     end_y -= TAB_BAR_HEIGHT

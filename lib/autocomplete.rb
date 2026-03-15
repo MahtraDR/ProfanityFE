@@ -73,11 +73,7 @@ module Autocomplete
       end
     end
   rescue StandardError => e
-    begin
-      File.open(LOG_FILE, 'a') { |f| f.puts "[autocomplete] #{e.message}"; f.puts e.backtrace[0...BACKTRACE_LIMIT] }
-    rescue StandardError
-      $stderr.puts "[autocomplete] #{e.message}"
-    end
+    ProfanityLog.write('autocomplete', e.message, backtrace: e.backtrace)
   end
 
   # Apply a completion string to the command buffer.

@@ -32,6 +32,9 @@ class CountdownWindow < BaseWindow
   # @return [Integer] current secondary countdown value in seconds
   attr_reader :secondary_value
 
+  # Create a new countdown window with default color palette and zero timers.
+  #
+  # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
     @label = String.new
     @fg = []

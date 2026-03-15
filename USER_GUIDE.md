@@ -61,7 +61,8 @@ ProfanityFE connects to `127.0.0.1` on the specified port.
 | `--template=<file>` | -- | Template filename from `templates/` subfolder |
 | `--no-status` | off | Disable process title updates |
 | `--links` | off | Enable in-game link highlighting |
-| `--remote-url` | off | Display LaunchURLs as text (for SSH/remote sessions) |
+| `--speech-ts` | off | Add timestamps to speech, familiar, and thought windows |
+| `--remote-url=<url>` | off | Display LaunchURLs as text (for SSH/remote sessions) |
 | `--default-color-id=<id>` | `7` | Curses color ID for the default foreground color |
 | `--default-background-color-id=<id>` | `0` | Curses color ID for the default background color |
 | `--custom-colors=<on\|off\|yes\|no>` | auto-detected | Force custom color mode on or off |
@@ -1339,6 +1340,14 @@ Launch the interactive mouse scroll wheel calibration wizard. See
 .scrollcfg
 ```
 
+### .help
+
+Display a list of all available dot-commands with brief descriptions.
+
+```
+.help
+```
+
 ---
 
 ## 8. Color System
@@ -1386,6 +1395,7 @@ your settings file:
 
 ```xml
 <preset id='roomName' fg='00ff00'/>
+<preset id='roomDesc' fg='cccccc'/>
 <preset id='monsterbold' fg='ffff00'/>
 <preset id='speech' fg='00ff00'/>
 <preset id='whisper' fg='00ffff'/>
@@ -1542,8 +1552,6 @@ on text and tabbed windows.
 | `exp` | Experience/skill data (wired to exp windows) |
 | `percWindow` | Active spells/effects (wired to perc windows) |
 | `moonWindow` | Moon data |
-| `talk` | Talk/speech messages |
-| `whispers` | Whisper messages |
 | `shopWindow` | Shop inventory |
 | `room` | Room component data (title, desc, objects, players, exits) |
 

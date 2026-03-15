@@ -54,11 +54,7 @@ class MouseScroll
       handle_scroll(bstate)
     end
   rescue StandardError => e
-    begin
-      File.open(LOG_FILE, 'a') { |f| f.puts "[MouseScroll] #{e.message}" }
-    rescue StandardError
-      # ignore
-    end
+    ProfanityLog.write('MouseScroll', e.message)
   end
 
   # Start scroll wheel calibration mode.
@@ -86,6 +82,9 @@ class MouseScroll
 
   private
 
+  # Load saved scroll button masks from settings and enable the mouse listener.
+  #
+  # @return [void]
   def load_settings
     settings = ProfanitySettings.load_mouse_settings
     return unless settings
@@ -99,11 +98,18 @@ class MouseScroll
     Curses.mousemask(@button4_mask | @button5_mask)
   end
 
+  # Cancel calibration and reset state to idle.
+  #
+  # @return [void]
   def reset_configuration
     @config_state = :idle
     @bstate_counts = {}
   end
 
+  # Process a mouse event during calibration to detect scroll-up/down masks.
+  #
+  # @param bstate [Integer] the mouse button state bitmask
+  # @return [void]
   def configure(bstate)
     case @config_state
     when :up
@@ -130,6 +136,10 @@ class MouseScroll
     end
   end
 
+  # Dispatch a scroll-up or scroll-down action based on the button state.
+  #
+  # @param bstate [Integer] the mouse button state bitmask
+  # @return [void]
   def handle_scroll(bstate)
     return unless @button4_mask && @button5_mask
 

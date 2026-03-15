@@ -24,6 +24,9 @@ class ProgressWindow < BaseWindow
   # @return [Integer] maximum value (clamped to >= 1)
   attr_reader :max_value
 
+  # Create a new progress bar window with default colors (100/100).
+  #
+  # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
     @label = String.new
     @fg = []

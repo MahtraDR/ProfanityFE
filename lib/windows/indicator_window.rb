@@ -32,6 +32,9 @@ class IndicatorWindow < BaseWindow
     redraw
   end
 
+  # Create a new indicator window with default colors.
+  #
+  # @param args [Array] arguments forwarded to {BaseWindow#initialize}
   def initialize(*args)
     @fg = %w[444444 ffff00]
     @bg = [nil, nil]

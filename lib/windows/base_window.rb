@@ -22,6 +22,9 @@ class BaseWindow < Curses::Window
   # @return [Hash, nil] layout definition for this window
   attr_accessor :layout
 
+  # Create a new window and register it in the class instance list.
+  #
+  # @param args [Array] arguments forwarded to +Curses::Window.new+
   def initialize(*args)
     @layout = nil
     @active = false

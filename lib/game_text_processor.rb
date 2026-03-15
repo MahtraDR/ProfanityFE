@@ -231,14 +231,7 @@ class GameTextProcessor
                   end
                 end
               rescue StandardError => e
-                begin
-                  File.open(LOG_FILE, 'a') do |f|
-                    f.puts "[roundtime thread] #{e}"
-                    f.puts e.backtrace[0...BACKTRACE_LIMIT]
-                  end
-                rescue StandardError
-                  warn "[roundtime thread] #{e}"
-                end
+                ProfanityLog.write('roundtime thread', e.to_s, backtrace: e.backtrace)
               end
             end
           elsif (cast_match = xml.match(/^<castTime value=(?<q>'|")(?<value>[0-9]+)\k<q>/))
@@ -258,14 +251,7 @@ class GameTextProcessor
                   end
                 end
               rescue StandardError => e
-                begin
-                  File.open(LOG_FILE, 'a') do |f|
-                    f.puts "[casttime thread] #{e}"
-                    f.puts e.backtrace[0...BACKTRACE_LIMIT]
-                  end
-                rescue StandardError
-                  warn "[casttime thread] #{e}"
-                end
+                ProfanityLog.write('casttime thread', e.to_s, backtrace: e.backtrace)
               end
             end
           elsif xml =~ /^<compass/
@@ -475,15 +461,7 @@ class GameTextProcessor
     @cmd_buffer.window&.getch
     exit
   rescue StandardError => e
-    begin
-      File.open(LOG_FILE, 'a') do |f|
-        f.puts e
-        f.puts e.backtrace[0...BACKTRACE_LIMIT]
-      end
-    rescue StandardError
-      warn e
-      warn e.backtrace[0...BACKTRACE_LIMIT]
-    end
+    ProfanityLog.write('game_text_processor', e.to_s, backtrace: e.backtrace)
     exit
   end
 
@@ -523,14 +501,7 @@ class GameTextProcessor
           end
         end
       rescue StandardError => e
-        begin
-          File.open(LOG_FILE, 'a') do |f|
-            f.puts "[stun thread] #{e}"
-            f.puts e.backtrace[0...BACKTRACE_LIMIT]
-          end
-        rescue StandardError
-          warn "[stun thread] #{e}"
-        end
+        ProfanityLog.write('stun thread', e.to_s, backtrace: e.backtrace)
       end
     end
   end
@@ -898,7 +869,11 @@ class GameTextProcessor
                 fg: foo[logon_type]
               })
             end
-          elsif @current_stream == 'exp'
+          elsif @current_stream =~ /^(?:speech|thoughts|familiar)$/ && SPEECH_TS
+            text = "#{text} (#{Time.now.strftime('%H:%M:%S').sub(/^0/, '')})"
+          end
+
+          if @current_stream == 'exp'
             window = @wm.stream['exp']
           elsif @current_stream == 'percWindow'
             window = @wm.stream['percWindow']
@@ -936,6 +911,10 @@ class GameTextProcessor
           end
         elsif @current_stream =~ /^(?:death|logons|thoughts|voln|familiar|assess|ooc|shopWindow|combat|moonWindow|atmospherics)$/
           if (window = @wm.stream[MAIN_STREAM])
+            # Append timestamp to speech/thoughts/familiar when --speech-ts is active
+            if @current_stream =~ /^(?:thoughts|familiar)$/ && SPEECH_TS
+              text = "#{text} (#{Time.now.strftime('%H:%M:%S').sub(/^0/, '')})"
+            end
             if PRESET[@current_stream]
               @line_colors.push(start: 0, fg: PRESET[@current_stream][0], bg: PRESET[@current_stream][1],
                                 end: text.length)

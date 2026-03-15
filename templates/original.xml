@@ -1,0 +1,218 @@
+<!--
+  ProfanityFE Template: original.xml
+  ~~
+  Game:    GemStone IV (GS-specific highlight patterns)
+  Source:  Ported from elanthia-online/ProfanityFE
+  Purpose: Minimal baseline template — a clean starting point with only
+           essential highlights and a simple 3-window layout.
+
+  This is the simplest template available. Use it as a foundation to build
+  your own configuration, or as a reference for the minimum viable setup.
+
+  Layout: 3 windows
+    - Top strip: chat (lnet, thoughts, voln) — full width, 6 rows
+    - Left sidebar: death notices + logon/logoff — 11 cols
+    - Main area: game text — remaining space
+
+  To use:  profanity.rb --template=original.xml --char=YourName
+
+  NOTE: This template contains GemStone IV-specific highlight patterns.
+        DragonRealms players should use mahtra.xml or default.xml instead.
+-->
+<settings>
+
+  <!-- ================================================================
+       HIGHLIGHTS — GemStone IV specific patterns
+       ================================================================
+       These highlight patterns are tuned for GemStone IV game text.
+       They will not match DragonRealms messaging. -->
+
+  <!-- Spell casting messages (GS spellcasting verbs) -->
+  <highlight fg='9090ff'>^(?:You gesture|You intone a phrase of elemental power|You recite a series of mystical phrases|You trace a series of glowing runes|Your hands glow with power as you invoke|You trace a simple rune while intoning|You trace a sign while petitioning the spirits|You trace an intricate sign that contorts in the air).*$</highlight>
+  <!-- Cast roundtime and spell ready notifications -->
+  <highlight fg='9090ff'>^(?:Cast Roundtime 3 Seconds\.|Your spell is ready\.)$</highlight>
+  <!-- Spell duration remaining (e.g., "[30 seconds remaining.]") -->
+  <highlight fg='9090ff'>^.*remaining\. \]$</highlight>
+
+  <!-- Player disks (floating storage containers) -->
+  <highlight fg='88aaff'>([A-Z][a-z]+ disk)</highlight>
+
+  <!-- Dim the prompt line (e.g., "[Healer's Home]> look") -->
+  <highlight fg='555555'>^\[.*?\](?:>|&gt;).*$</highlight>
+  <!-- Dim timestamps in parentheses -->
+  <highlight fg='555555'>\([0-9][0-9]\:[0-9][0-9]\:[0-9][0-9]\)$</highlight>
+
+  <!-- Communication channels -->
+  <highlight fg='0000ff'>^\[LNet\]</highlight>
+  <highlight fg='008000'>^\[code\]</highlight>
+  <highlight fg='808000'>^\[Shattered\]</highlight>
+  <highlight fg='ffffff'>^\[Private(?:To)?\]</highlight>
+
+  <!-- Lich framework output -->
+  <highlight fg='008000'>^--- Lich:.*</highlight>
+
+  <!-- Creature status conditions (GS/DR shared format) -->
+  <highlight fg='565656'>\((?:calmed|dead|flying|hiding|kneeling|prone|sitting|sleeping|stunned)\)</highlight>
+
+  <!-- GS-specific dangerous spell effects (e.g., Implosion, Fire Storm) -->
+  <highlight fg='ff0000'>^.* throws (?:his|her) arms skyward!$|swirling black void|(?:Dozens of flaming meteors light the sky nearby!|Several flaming meteors light the nearby sky!|Several flaming rocks burst from the sky and smite the area!|A low roar of quickly parting air can be heard above!)</highlight>
+
+  <!-- Creature death messages (GS format) -->
+  <highlight fg='ffffff'>^.*(?:falls slack against the floor|falls slack against the ground|falls to the floor, motionless|falls to the ground dead|falls to the ground motionless|and dies|and lies still|goes still|going still)\.$</highlight>
+  <highlight fg='ffffff'>^.* is stunned!$|^You come out of hiding\.$</highlight>
+
+  <!-- Danger/warning messages — things happening TO you -->
+  <highlight fg='ffaaaa'>.*ruining your hiding place\.$|^You are no longer hidden\.$|^\s*You are (?:stunned|knocked to the ground).*|^You are unable to remain hidden!$|^You are visible again\.$|^You fade into sight\.$|^You fade into view.*|^You feel drained!$|^You have overextended yourself!$|^You feel yourself going into shock!$</highlight>
+
+  <!-- ================================================================
+       PRESETS — Colors for game-defined text categories
+       ================================================================ -->
+  <preset id='whisper'     fg='66ff66'/>
+  <preset id='speech'      fg='66ff66'/>
+  <preset id='roomName'    fg='ffffff'/>
+  <preset id='monsterbold' fg='d2bc2a'/>
+  <preset id='familiar'    bg='00001a'/>
+  <preset id='thoughts'    bg='001a00'/>
+  <preset id='voln'        bg='001a00'/>
+
+  <!-- ================================================================
+       KEY BINDINGS
+       ================================================================
+       Minimal set — cursor movement, editing, scrolling, and macros.
+       See USER_GUIDE.md for all available key names and actions. -->
+
+  <!-- GS-specific macros -->
+  <key id='alt'>
+    <key id='f' macro='something'/>
+  </key>
+
+  <!-- Command entry -->
+  <key id='enter'     action='send_command'/>
+  <key id='up'        action='previous_command'/>
+  <key id='down'      action='next_command'/>
+
+  <!-- Cursor movement -->
+  <key id='left'       action='cursor_left'/>
+  <key id='right'      action='cursor_right'/>
+  <key id='ctrl+left'  action='cursor_word_left'/>
+  <key id='ctrl+right' action='cursor_word_right'/>
+  <key id='home'       action='cursor_home'/>
+  <key id='end'        action='cursor_end'/>
+
+  <!-- Editing -->
+  <key id='backspace'     action='cursor_backspace'/>
+  <key id='win_backspace' action='cursor_backspace'/>
+  <key id='ctrl+?'        action='cursor_backspace'/>
+  <key id='delete'        action='cursor_delete'/>
+
+  <!-- Window scrolling -->
+  <key id='tab'           action='switch_current_window'/>
+  <key id='alt+page_up'   action='scroll_current_window_up_one'/>
+  <key id='alt+page_down' action='scroll_current_window_down_one'/>
+  <key id='page_up'       action='scroll_current_window_up_page'/>
+  <key id='page_down'     action='scroll_current_window_down_page'/>
+
+  <!-- Quick commands -->
+  <key id='num_enter' action='send_last_command'/>
+  <key id='alt+up'    action='send_second_last_command'/>
+
+  <!-- Numpad directional macros (GS directions) -->
+  <key id='num_1' macro='\xsw\r'/>
+  <key id='num_2' macro='\xs\r'/>
+  <key id='num_3' macro='\xse\r'/>
+  <key id='num_4' macro='\xw\r'/>
+  <key id='num_5' macro='\xout\r'/>
+  <key id='num_6' macro='\xe\r'/>
+  <key id='num_7' macro='\xnw\r'/>
+  <key id='num_8' macro='\xn\r'/>
+  <key id='num_9' macro='\xne\r'/>
+
+  <!-- GS-specific stance/gear macros -->
+  <key id='ctrl+d' macro='\\xstance defensive\\r'/>
+  <key id='ctrl+o' macro='\\xstance offensive\\r'/>
+  <key id='ctrl+g' macro='\\xremove my buckler\\r'/>
+  <key id='ctrl+p' macro='\\xwear my buckler\\r'/>
+  <key id='ctrl+f' macro='\\xtell familiar to '/>
+
+  <!-- Terminal resize handler -->
+  <key id='resize' action='resize'/>
+
+  <!-- ================================================================
+       LAYOUT
+       ================================================================
+       Simple 3-window layout. Adapts to terminal size via expressions.
+
+       +-------------------------------------------+
+       | Chat: lnet, thoughts, voln    (6 rows)    |
+       +-----+-------------------------------------+
+       |death| Main game text                      |
+       |logon|                                     |
+       |     | (fills remaining space)             |
+       +-----+-------------------------------------+
+       |> [command input]                          |
+       +-------------------------------------------+
+       | Progress bars, compass, injury indicators |
+       +-------------------------------------------+
+  -->
+  <layout id='default'>
+    <!-- Chat strip across the top -->
+    <window class='text' top='0' left='0' height='6' width='cols' value='lnet,thoughts,voln' buffer-size='1000'/>
+
+    <!-- Left sidebar: death + logon streams -->
+    <window class='text' top='7' left='0' width='11' height='lines-31' value='death,logons' buffer-size='500'/>
+
+    <!-- Main game text area -->
+    <window class='text' top='6' left='12' width='cols-12' height='lines-7' value='main' buffer-size='2000'/>
+
+    <!-- Command input -->
+    <window class='indicator' top='lines-1' left='12' height='1' width='1' label='&gt;' value='prompt' fg='444444,44444'/>
+    <window class='command'   top='lines-1' left='13' width='cols-13' height='1'/>
+
+    <!-- Vital bars (left column) -->
+    <window class='progress' top='lines-11' left='0' width='11' height='1' label='stance:'  value='stance'      bg='290055'/>
+    <window class='progress' top='lines-10' left='0' width='11' height='1' label='mind:'    value='mind'        bg='663000,442000'/>
+    <window class='progress' top='lines-8'  left='0' width='11' height='1' label='health:'  value='health'      bg='004800,003300'/>
+    <window class='progress' top='lines-7'  left='0' width='11' height='1' label='spirit:'  value='spirit'      bg='333300,222200'/>
+    <window class='progress' top='lines-6'  left='0' width='11' height='1' label='mana:'    value='mana'        bg='0000a0,000055'/>
+    <window class='progress' top='lines-5'  left='0' width='11' height='1' label='stam:'    value='stamina'     bg='003333,002222'/>
+    <window class='progress' top='lines-3'  left='0' width='11' height='1' label='load:'    value='encumbrance' bg='990033,4c0019' fg='nil,nil,nil,444444'/>
+
+    <!-- Countdown timers -->
+    <window class='countdown' top='lines-2' left='0' width='11' height='1' label='stun:'    value='stunned'   fg='444444,dddddd'                bg='nil,aa0000'/>
+    <window class='countdown' top='lines-1' left='0' width='11' height='1' label='rndtime:' value='roundtime' fg='444444,dddddd,dddddd,dddddd'  bg='nil,aa0000,0000aa'/>
+
+    <!-- Compass indicators -->
+    <window class='indicator' top='lines-15' left='1' height='1' width='1' label='^' value='compass:up'  fg='444444,ffff00'/>
+    <window class='indicator' top='lines-14' left='1' height='1' width='1' label='o' value='compass:out' fg='444444,ffff00'/>
+    <window class='indicator' top='lines-13' left='1' height='1' width='1' label='v' value='compass:down' fg='444444,ffff00'/>
+    <window class='indicator' top='lines-15' left='5' height='1' width='1' label='*' value='compass:nw'  fg='444444,ffff00'/>
+    <window class='indicator' top='lines-14' left='5' height='1' width='1' label='&lt;' value='compass:w' fg='444444,ffff00'/>
+    <window class='indicator' top='lines-13' left='5' height='1' width='1' label='*' value='compass:sw'  fg='444444,ffff00'/>
+    <window class='indicator' top='lines-15' left='7' height='1' width='1' label='^' value='compass:n'   fg='444444,ffff00'/>
+    <window class='indicator' top='lines-13' left='7' height='1' width='1' label='v' value='compass:s'   fg='444444,ffff00'/>
+    <window class='indicator' top='lines-15' left='9' height='1' width='1' label='*' value='compass:ne'  fg='444444,ffff00'/>
+    <window class='indicator' top='lines-14' left='9' height='1' width='1' label='&gt;' value='compass:e' fg='444444,ffff00'/>
+    <window class='indicator' top='lines-13' left='9' height='1' width='1' label='*' value='compass:se'  fg='444444,ffff00'/>
+
+    <!-- Body part injury indicators (ASCII figure) -->
+    <window class='indicator' top='lines-23' left='1' height='1' width='1' label='e' value='leftEye'   fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-23' left='5' height='1' width='1' label='e' value='rightEye'  fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-22' left='3' height='1' width='1' label='O' value='head'      fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-21' left='2' height='1' width='1' label='/' value='leftArm'   fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-21' left='3' height='1' width='1' label='|' value='chest'     fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-21' left='4' height='1' width='1' label='\' value='rightArm'  fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-20' left='1' height='1' width='1' label='o' value='leftHand'  fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-20' left='3' height='1' width='1' label='|' value='abdomen'   fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-20' left='5' height='1' width='1' label='o' value='rightHand' fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-19' left='1' height='2' width='2' label=' /o' value='leftLeg' fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-19' left='4' height='2' width='2' label='\  o' value='rightLeg' fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-23' left='8' height='1' width='2' label='ns' value='nsys'     fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-21' left='8' height='1' width='2' label='nk' value='neck'     fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+    <window class='indicator' top='lines-19' left='8' height='1' width='2' label='bk' value='back'     fg='444444,ffff00,ff6600,ff0000,00ffff,0066ff,0000ff'/>
+
+    <!-- Status condition indicators -->
+    <window class='indicator' top='lines-17' left='0' height='1' width='3' label='psn' value='poisoned' fg='444444,ff0000'/>
+    <window class='indicator' top='lines-17' left='4' height='1' width='3' label='dis' value='diseased' fg='444444,ff0000'/>
+    <window class='indicator' top='lines-17' left='8' height='1' width='3' label='bld' value='bleeding' fg='444444,ff0000'/>
+  </layout>
+</settings>

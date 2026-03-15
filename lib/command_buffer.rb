@@ -4,28 +4,7 @@
 # Wraps a Curses::Window for editing; all screen updates use noutrefresh.
 
 require_relative 'kill_ring'
-
-# Refinement adding character-class predicates to String.
-# Duplicated from profanity.rb so this file is self-contained.
-module StringClassification
-  refine String do
-    def alnum?
-      !!match(/^[[:alnum:]]+$/)
-    end
-
-    def digits?
-      !!match(/^[[:digit:]]+$/)
-    end
-
-    def punct?
-      !!match(/^[[:punct:]]+$/)
-    end
-
-    def space?
-      !!match(/^[[:space:]]+$/)
-    end
-  end
-end
+require_relative 'string_classification'
 using StringClassification
 
 # Command-line input buffer backed by a Curses::Window.
@@ -226,13 +205,7 @@ class CommandBuffer
     (1..@offset).each do |num|
       @window.insch(@text[@offset - num])
     rescue StandardError => e
-      File.open(LOG_FILE, 'a') do |f|
-        f.puts "command_buffer: #{@text.inspect}"
-        f.puts "offset: #{@offset.inspect}"
-        f.puts "num: #{num.inspect}"
-        f.puts e
-        f.puts e.backtrace[0...BACKTRACE_LIMIT]
-      end
+      ProfanityLog.write('command_buffer', "#{e} text=#{@text.inspect} offset=#{@offset.inspect} num=#{num.inspect}", backtrace: e.backtrace)
       return
     end
     @offset = 0
