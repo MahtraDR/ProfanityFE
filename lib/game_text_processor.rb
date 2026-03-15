@@ -289,6 +289,20 @@ class GameTextProcessor
               @need_update = true
             end
 
+          # User-defined arbitrary progress bars with dynamic colors/labels
+          # Example: <arbProgress id='spellactivel' max='250' current='160' label='WaterWalking' colors='1589FF,000000'</arbProgress>
+          elsif (arb_match = xml.match(/^<arbProgress id='(?<id>[a-zA-Z0-9]+)' max='(?<max>\d+)' current='(?<cur>\d+)'(?:\s+label='(?<label>.+?)')?(?:\s+colors='(?<colors>\S+?)')?/))
+            current = [arb_match[:cur].to_i, arb_match[:max].to_i].min
+            if (window = @wm.progress[arb_match[:id]])
+              window.label = arb_match[:label] if arb_match[:label]
+              if arb_match[:colors]
+                bg, fg = arb_match[:colors].split(',')
+                window.bg = [bg] if bg
+                window.fg = [fg] if fg
+              end
+              @need_update = true if window.update(current, arb_match[:max].to_i)
+            end
+
           elsif ['<pushBold/>', '<b>'].include?(xml)
             h = { start: start_pos }
             if PRESET['monsterbold']
