@@ -26,11 +26,10 @@ profanity.log
 doc/
 .yardoc/
 
-# Review/development docs (not for public distribution)
-MODERNIZATION.md
-PROFANITY_REVIEW.md
+# Markdown files (except tracked docs)
+*.md
+!README.md
+!USER_GUIDE.md
 
 # Temporary files
 /tmp/
-CODE_REVIEW_PLAN.md
-BUG_AUDIT_REPORT.md
