@@ -264,9 +264,10 @@ class GameTextProcessor
 
               @need_update = true if window.update(current_dirs.include?(dir))
             end
-          elsif (pbar_match = xml.match(/^<progressBar id='(?<id>.*?)' value='[0-9]+' text='.* (?<pct>[0-9]+)%/))
-            if (window = @wm.progress[pbar_match[:id]]) && window.update(pbar_match[:pct].to_i, 100)
-              @need_update = true
+          elsif (encum_match = xml.match(/^<progressBar id='encumlevel' value='(?<value>[0-9]+)' text='(?<text>.*?)'/))
+            if (window = @wm.progress['encumbrance'])
+              value = encum_match[:text] == 'Overloaded' ? 110 : encum_match[:value].to_i
+              @need_update = true if window.update(value, 110)
             end
           elsif (stance_match = xml.match(/^<progressBar id='pbarStance' value='(?<value>[0-9]+)'/))
             if (window = @wm.progress['stance']) && window.update(stance_match[:value].to_i, 100)
@@ -274,12 +275,18 @@ class GameTextProcessor
             end
           elsif (mind_match = xml.match(/^<progressBar id='mindState' value='(?<value>.*?)' text='(?<text>.*?)'/))
             if (window = @wm.progress['mind'])
-              value = if mind_match[:text] == 'saturated'
-                        110
-                      else
-                        mind_match[:value].to_i
-                      end
+              value = mind_match[:text] == 'saturated' ? 110 : mind_match[:value].to_i
               @need_update = true if window.update(value, 110)
+            end
+          # GemStone vitals: text contains current/max (e.g., "health 456/456")
+          elsif (gs_match = xml.match(/^<progressBar id='(?<id>.*?)' value='[0-9]+' text='.*?\s+(?<cur>-?[0-9]+)\/(?<max>[0-9]+)'/))
+            if (window = @wm.progress[gs_match[:id]]) && window.update(gs_match[:cur].to_i, gs_match[:max].to_i)
+              @need_update = true
+            end
+          # DragonRealms vitals: text contains percentage (e.g., "health 75%")
+          elsif (dr_match = xml.match(/^<progressBar id='(?<id>health|mana|spirit|stamina|concentration)' value='(?<value>[0-9]+)' text='(?:health|mana|spirit|fatigue|concentration|inner fire) [0-9]+\%'/))
+            if (window = @wm.progress[dr_match[:id]]) && window.update(dr_match[:value].to_i, 100)
+              @need_update = true
             end
 
           elsif ['<pushBold/>', '<b>'].include?(xml)
