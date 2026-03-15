@@ -654,8 +654,20 @@ key_action['autocomplete'] = proc {
 # ========== LOAD SETTINGS AND LAYOUT ==========
 
 SettingsLoader.load(SETTINGS_FILENAME, key_binding, key_action, do_macro)
+
+if LAYOUT.empty?
+  $stderr.puts "ERROR: No layouts found in #{SETTINGS_FILENAME}."
+  $stderr.puts "The XML file may be malformed. Check for unclosed tags or encoding errors."
+  exit 1
+end
+
 window_mgr.load_layout('default')
 cmd_buffer.window = window_mgr.command_window
+
+unless cmd_buffer.window
+  $stderr.puts "ERROR: Layout has no command window. Add <window class='command'/> to your layout."
+  exit 1
+end
 
 TextWindow.list.each { |w| w.maxy.times { w.add_string "\n".dup } }
 

@@ -320,9 +320,9 @@ class GameTextProcessor
             end
           elsif xml =~ /^<color/
             h = { start: start_pos }
-            h[:fg] = fg_match[:val].downcase if xml.match(/\sfg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/)
-            h[:bg] = bg_match[:val].downcase if xml.match(/\sbg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/)
-            h[:ul] = ul_match[:val].downcase if xml.match(/\sul=(?<q>'|")(?<val>.*?)\k<q>[\s>]/)
+            h[:fg] = fg_match[:val].downcase if (fg_match = xml.match(/\sfg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
+            h[:bg] = bg_match[:val].downcase if (bg_match = xml.match(/\sbg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
+            h[:ul] = ul_match[:val].downcase if (ul_match = xml.match(/\sul=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
             @open_color.push(h)
           elsif xml == '</color>'
             if (h = @open_color.pop)
@@ -677,10 +677,11 @@ class GameTextProcessor
               text.sub!(pattern, replacement)
             end
 
-            if text.index('(')
-              spell_name = text[0..text.index('(') - 2]
+            paren_pos = text.index('(')
+            if paren_pos && paren_pos > 1
+              spell_name = text[0..paren_pos - 2]
               # Shorten spell names
-              text.sub!(/^#{spell_name}/, abbreviate_spell(spell_name)) if Games::DragonRealms::SPELL_ABBREVIATIONS.include?(spell_name.strip)
+              text.sub!(/^#{Regexp.escape(spell_name)}/, abbreviate_spell(spell_name)) if Games::DragonRealms::SPELL_ABBREVIATIONS.include?(spell_name.strip)
             end
 
             text.gsub!(/  /, ' ')

@@ -134,13 +134,21 @@ module SettingsLoader
             final_key = key[-1]
             if (macro = xml.attributes['macro'])
               current_binding[final_key] = proc { do_macro.call(macro) }
-            elsif xml.attributes['action'] && (action = key_action[xml.attributes['action']])
-              current_binding[final_key] = action
+            elsif xml.attributes['action']
+              if (action = key_action[xml.attributes['action']])
+                current_binding[final_key] = action
+              else
+                ProfanityLog.write('settings', "Unknown action '#{xml.attributes['action']}' for key '#{xml.attributes['id']}'")
+              end
             end
           elsif (macro = xml.attributes['macro'])
             binding[key] = proc { do_macro.call(macro) }
-          elsif xml.attributes['action'] && (action = key_action[xml.attributes['action']])
-            binding[key] = action
+          elsif xml.attributes['action']
+            if (action = key_action[xml.attributes['action']])
+              binding[key] = action
+            else
+              ProfanityLog.write('settings', "Unknown action '#{xml.attributes['action']}' for key '#{xml.attributes['id']}'")
+            end
           else
             binding[key] ||= {}
             xml.elements.each do |e|
