@@ -80,6 +80,7 @@ class BaseWindow < Curses::Window
   # @yieldparam line_colors [Array<Hash>] color regions scoped to this line
   # @return [void]
   def wrap_text(string, width, string_colors, indent: true)
+    string = string.dup if string.frozen?
     while (line = string.slice!(/^.{2,#{width}}(?=\s|$)/)) || (line = string.slice!(0, width))
       line_colors = []
       string_colors.each do |h|
