@@ -384,6 +384,8 @@ do_macro = proc { |macro|
 #   .tab               List all tabs in tabbed windows (active tab marked *).
 #   .tab <number>      Switch to tab by 1-based index.
 #   .tab <name>        Switch to tab by name.
+#   .arrow             Toggle up/down arrow keys between command history
+#                      navigation and page scrolling.
 #   .help              Show this list of dot-commands.
 #
 # All dot-commands are case-insensitive.
@@ -398,6 +400,7 @@ DOT_COMMAND_HELP = [
   '.resize            Recalculate window sizes for terminal',
   '.tab               List tabs (active marked with *)',
   '.tab <N|name>      Switch tab by number or name',
+  '.arrow             Toggle arrow keys: history vs scroll',
   '.links             Toggle in-game link highlighting',
   '.scrollcfg         Configure mouse scroll wheel',
   '.help              Show this help'
@@ -450,6 +453,8 @@ execute_command = proc { |cmd|
       TabbedTextWindow.list.each { |w| w.switch_tab(arg) }
       Curses.doupdate
     end
+  elsif cmd =~ /^\.arrow/i
+    key_action['switch_arrow_mode'].call
   elsif cmd =~ /^\.links/i
     blue_links = !blue_links
     if (window = window_mgr.stream[MAIN_STREAM])
@@ -629,6 +634,16 @@ key_action['previous_command'] = proc {
 key_action['next_command'] = proc {
   cmd_buffer.next_command
   Curses.doupdate
+}
+
+key_action['switch_arrow_mode'] = proc {
+  if key_binding[Curses::KEY_UP] == key_action['previous_command']
+    key_binding[Curses::KEY_UP] = key_action['scroll_current_window_up_page']
+    key_binding[Curses::KEY_DOWN] = key_action['scroll_current_window_down_page']
+  else
+    key_binding[Curses::KEY_UP] = key_action['previous_command']
+    key_binding[Curses::KEY_DOWN] = key_action['next_command']
+  end
 }
 
 key_action['send_command'] = proc {

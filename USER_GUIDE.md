@@ -966,6 +966,7 @@ Actions are predefined behaviors that can be bound to keys:
 | `scroll_current_window_down_page` | Scroll the focused window down by one page |
 | `scroll_current_window_bottom` | Scroll the focused window to the bottom (newest content) |
 | `resize` | Manually recalculate all window positions and sizes |
+| `switch_arrow_mode` | Toggle up/down arrows between command history and page scrolling |
 
 **Tab management:**
 
@@ -1330,6 +1331,23 @@ Manage tabs in tabbed windows.
 ```
 
 When listing tabs, output looks like: `* Tabs: 1:main* 2:combat 3:thoughts`
+
+### .arrow
+
+Toggle the up/down arrow keys between two modes:
+
+- **History mode** (default): Up/Down navigate command history.
+- **Scroll mode**: Up/Down scroll the focused window by one page.
+
+```
+.arrow
+```
+
+This can also be bound to a key:
+
+```xml
+<key id='F2' action='switch_arrow_mode'/>
+```
 
 ### .links
 
