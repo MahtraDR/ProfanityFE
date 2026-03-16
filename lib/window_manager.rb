@@ -190,6 +190,7 @@ class WindowManager
   # @param cmd_buffer [CommandBuffer] the command-line input buffer, used to refresh the command window cursor position
   # @return [void]
   def resize(_cmd_buffer)
+    CursesRenderer.synchronize do
     window = Curses::Window.new(0, 0, 0, 0)
     window.refresh
     window.close
@@ -245,7 +246,8 @@ class WindowManager
       @command_window.noutrefresh
     end
 
-    CursesRenderer.doupdate
+    Curses.doupdate
+    end # CursesRenderer.synchronize
   end
 end
 

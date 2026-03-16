@@ -132,6 +132,11 @@ class GameTextProcessor
       #   File.write("mothlog.txt", line.inspect + "\n", mode: "a")
       # end
 
+      # Synchronize all curses operations (noutrefresh calls from indicator,
+      # text, countdown, and room window updates) with the final doupdate so
+      # that timer and input threads cannot flush a half-updated virtual screen.
+      # rubocop:disable Layout/BlockAlignment -- flat indent avoids 370-line re-indent
+      CursesRenderer.synchronize do
       if line.empty?
         if @current_stream.nil?
           # Check if last line in ANY tab was movement (backup check)
@@ -504,14 +509,16 @@ class GameTextProcessor
         handle_game_text(line)
       end
       #
-      # delay screen update if there are more game lines waiting
+      # Flush screen update unless more game lines are waiting (batch rendering).
+      # IO.select returns nil (no data waiting) when we should flush now.
       #
-      next unless @need_update and !IO.select([server], nil, nil, 0.001)
-
-      @need_update = false
-      CursesRenderer.render do
+      if @need_update && !IO.select([server], nil, nil, 0.001)
+        @need_update = false
         @cmd_buffer.window&.noutrefresh
+        Curses.doupdate
       end
+      end # CursesRenderer.synchronize
+      # rubocop:enable Layout/BlockAlignment
     end
     # After loop exits (connection closed):
     show_disconnect_message
