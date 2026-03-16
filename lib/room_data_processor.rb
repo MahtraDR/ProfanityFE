@@ -44,29 +44,32 @@ module RoomDataProcessor
     # Handle room capture mode (roomName/roomDesc styled text).
     # Always update the terminal title from the roomName text since it
     # includes the room number in DR (e.g., "[Room] (230008)").
+    # For templates without a RoomWindow, store the title for the
+    # terminal but do NOT consume the text — it must still flow to
+    # the main text window.
     case @room_capture_mode
     when :title
       room_title = parse_room_subtitle(text)
-      unless room_title.empty?
-        @state.room_title = room_title
-        @state.update_terminal_title
-      end
+      @state.room_title = room_title unless room_title.empty?
       if @wm.room['room']
-        # Strip brackets for RoomWindow (it re-adds them during render)
         @room_pending_title = text.sub(/^\[/, '').sub(/\]\s*\(/, ' (').strip
         @room_pending_title_colors = line_colors.dup
+        room_data_captured = true
       end
       @room_capture_mode = nil
-      room_data_captured = true
     when :desc
       if @wm.room['room']
         @room_pending_desc = text.strip
         @room_pending_desc_colors = line_colors.dup
+        room_data_captured = true
       end
       @room_capture_mode = nil
-      room_data_captured = true
     end
 
+    # Flush the deferred terminal title update outside any curses write.
+    # The title was stored above; the actual escape sequence write is
+    # deferred to the end-of-line doupdate path to avoid interleaving
+    # with curses output.
     return room_data_captured unless @wm.room['room']
 
     # Detect "You also see" for objects (may have leading whitespace)

@@ -211,7 +211,6 @@ class GameTextProcessor
             else
               @state.need_prompt = true
             end
-            @state.update_terminal_title
           elsif (spell_match = xml.match(%r{^<spell(?:>|\s.*?>)(?<spell>.*?)</spell>$}))
             if (window = @wm.indicator['spell'])
               window.clear
@@ -414,7 +413,6 @@ class GameTextProcessor
                 title = parse_room_subtitle(sub_match[:sub])
                 unless title.empty?
                   @state.room_title = title
-                  @state.update_terminal_title
                   @wm.room['room']&.update_title(title)
                 end
               end
@@ -461,7 +459,6 @@ class GameTextProcessor
             room = parse_room_subtitle(sw_match[:sub])
             unless room.empty?
               @state.room_title = room
-              @state.update_terminal_title
               if (window = @wm.indicator['room'])
                 window.clear
                 window.label = room
@@ -520,6 +517,11 @@ class GameTextProcessor
       end
       end # CursesRenderer.synchronize
       # rubocop:enable Layout/BlockAlignment
+
+      # Flush terminal title AFTER curses operations complete.
+      # Writing escape sequences to $stdout inside the synchronize block
+      # interleaves with curses output, causing visible artifacts.
+      @state.update_terminal_title
     end
     # After loop exits (connection closed):
     show_disconnect_message
