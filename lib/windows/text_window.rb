@@ -216,12 +216,15 @@ class TextWindow < BaseWindow
   # @return [String, nil] the link command string, or nil if no link at that position
   def link_cmd_at(rel_y, rel_x)
     buffer_idx = @buffer_pos + (maxy - 1 - rel_y)
+    ProfanityLog.write('link_cmd_at', "rel=(#{rel_y},#{rel_x}) buffer_idx=#{buffer_idx} buffer_pos=#{@buffer_pos} maxy=#{maxy} buffer_len=#{@buffer.length}")
     return nil if buffer_idx < 0 || buffer_idx >= @buffer.length
 
-    _text, colors = @buffer[buffer_idx]
+    text, colors = @buffer[buffer_idx]
+    ProfanityLog.write('link_cmd_at', "  text=#{text.inspect[0..80]} colors_count=#{colors&.length}")
     return nil unless colors
 
     colors.each do |h|
+      ProfanityLog.write('link_cmd_at', "  span: start=#{h[:start]} end=#{h[:end]} cmd=#{h[:cmd].inspect} fg=#{h[:fg]}") if h[:cmd] || (rel_x >= h[:start] && rel_x < h[:end])
       return h[:cmd] if h[:cmd] && rel_x >= h[:start] && rel_x < h[:end]
     end
     nil

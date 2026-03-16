@@ -415,17 +415,21 @@ class TabbedTextWindow < BaseWindow
   # @return [String, nil] the link command string, or nil if no link at that position
   def link_cmd_at(rel_y, rel_x)
     content_y = rel_y - TAB_BAR_HEIGHT
+    ProfanityLog.write('link_cmd_at:tabbed', "rel=(#{rel_y},#{rel_x}) content_y=#{content_y} active_tab=#{@active_tab}")
     return nil if content_y < 0
 
     tab_buffer = @tabs[@active_tab] || []
     tab_buffer_pos = @buffer_positions[@active_tab] || 0
     buffer_idx = tab_buffer_pos + (content_height - 1 - content_y)
+    ProfanityLog.write('link_cmd_at:tabbed', "  buffer_idx=#{buffer_idx} buffer_pos=#{tab_buffer_pos} content_h=#{content_height} buf_len=#{tab_buffer.length}")
     return nil if buffer_idx < 0 || buffer_idx >= tab_buffer.length
 
-    _text, colors = tab_buffer[buffer_idx]
+    text, colors = tab_buffer[buffer_idx]
+    ProfanityLog.write('link_cmd_at:tabbed', "  text=#{text.inspect[0..80]} colors_count=#{colors&.length}")
     return nil unless colors
 
     colors.each do |h|
+      ProfanityLog.write('link_cmd_at:tabbed', "  span: start=#{h[:start]} end=#{h[:end]} cmd=#{h[:cmd].inspect} fg=#{h[:fg]}") if h[:cmd] || (rel_x >= h[:start] && rel_x < h[:end])
       return h[:cmd] if h[:cmd] && rel_x >= h[:start] && rel_x < h[:end]
     end
     nil
