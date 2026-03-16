@@ -433,7 +433,6 @@ class TabbedTextWindow < BaseWindow
     tab_buffer_pos = @buffer_positions[@active_tab] || 0
     visible_lines = [tab_buffer.length - tab_buffer_pos, content_height].min
 
-    highlighted = 0
     (0...content_height).each do |i|
       y = TAB_BAR_HEIGHT + i
       setpos(y, 0)
@@ -445,13 +444,11 @@ class TabbedTextWindow < BaseWindow
       line_text, line_colors = tab_buffer[buffer_idx]
 
       if i >= start_y && i <= end_y
-        highlighted += 1
         draw_line_with_selection(i, line_text, line_colors || [], start_y, start_x, end_y, end_x)
       else
         add_line(line_text, line_colors || [])
       end
     end
-    ProfanityLog.write('highlight', "sel=(#{start_y},#{start_x})..(#{end_y},#{end_x}) visible=#{visible_lines} highlighted=#{highlighted} lines")
     noutrefresh
   end
 
