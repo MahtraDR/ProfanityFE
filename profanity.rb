@@ -313,6 +313,8 @@ write_to_client = proc { |text|
   end
 }
 mouse_scroll = MouseScroll.new(key_action, write_to_client)
+# Enable mouse click capture if --links was passed on startup
+mouse_scroll.enable_click_events if cli_links
 
 # ========== MACRO ENGINE ==========
 
@@ -484,8 +486,14 @@ execute_command = proc { |cmd|
       Curses.doupdate
     end
   elsif cmd =~ /^\.links/i
-    # Toggle in-game <a> tag link highlighting (uses 'links' preset color)
+    # Toggle in-game link highlighting and clickable links
     shared_state.blue_links = !shared_state.blue_links
+    # Enable/disable mouse click capture (off restores native terminal selection)
+    if shared_state.blue_links
+      mouse_scroll.enable_click_events
+    else
+      mouse_scroll.disable_click_events
+    end
     if (window = window_mgr.stream[MAIN_STREAM])
       msg = "* Links display: #{shared_state.blue_links ? 'ON' : 'OFF'}"
       window.add_string(msg, feedback_colors.call(msg))
