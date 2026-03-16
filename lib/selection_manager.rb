@@ -6,7 +6,11 @@
 # Active when .links is enabled (which captures mouse events).
 # Selection is per-window: drag coordinates are clamped to the
 # active window's bounds so selections never bleed across windows.
-# Copies selected text via OSC 52 and /tmp/profanity_selection.txt.
+#
+# The highlight persists after release so the user can see what was
+# selected. It is cleared on the next mouse press or link click.
+# Selected text is copied to the system clipboard (pbcopy/xclip/wl-copy),
+# OSC 52 (for remote/SSH sessions), and /tmp/profanity_selection.txt.
 module SelectionManager
   @active_window = nil
   @start_y = nil
@@ -26,10 +30,11 @@ module SelectionManager
     end
 
     # Begin a new text selection at the given window coordinates.
+    # Clears any previous selection highlight first.
     #
-    # @param window [TextWindow] the window where selection starts
-    # @param y [Integer] starting row
-    # @param x [Integer] starting column
+    # @param window [BaseWindow] the window where selection starts
+    # @param y [Integer] starting row (window-relative)
+    # @param x [Integer] starting column (window-relative)
     # @return [void]
     def start_selection(window, y, x)
       clear_selection
@@ -43,8 +48,8 @@ module SelectionManager
 
     # Extend the current selection to a new endpoint and redraw highlights.
     #
-    # @param y [Integer] new end row
-    # @param x [Integer] new end column
+    # @param y [Integer] new end row (window-relative)
+    # @param x [Integer] new end column (window-relative)
     # @return [void]
     def update_selection(y, x)
       return unless @selecting && @active_window
@@ -54,7 +59,8 @@ module SelectionManager
       @active_window.highlight_selection(@start_y, @start_x, @end_y, @end_x)
     end
 
-    # Finalize the selection, copy extracted text to the clipboard, and clear highlights.
+    # Finalize the selection and copy text to the clipboard.
+    # The highlight is kept visible until the next selection or click.
     #
     # @return [void]
     def end_selection
@@ -67,8 +73,7 @@ module SelectionManager
       else
         ProfanityLog.write('SelectionManager', "No text extracted: start=(#{@start_y},#{@start_x}) end=(#{@end_y},#{@end_x})")
       end
-      @active_window.clear_highlight
-      clear_selection
+      # Keep highlight visible — cleared on next start_selection or clear_selection
     end
 
     # Reset all selection state and clear any active highlight.
@@ -81,20 +86,39 @@ module SelectionManager
       @selecting = false
     end
 
-    # Copy text to the clipboard via file and OSC 52 escape sequence.
+    # Copy text to the system clipboard, OSC 52, and a temp file.
+    #
+    # Tries platform-native clipboard commands first (pbcopy on macOS,
+    # xclip or wl-copy on Linux), then OSC 52 for remote/SSH sessions,
+    # and always writes to /tmp/profanity_selection.txt as a fallback.
     #
     # @param text [String] the text to copy
     # @return [void]
     def copy_to_clipboard(text)
-      # Always write to file for SSH/Screen scenarios
-      File.write('/tmp/profanity_selection.txt', text)
+      # Try platform-native clipboard
+      clipboard_cmd = if RbConfig::CONFIG['host_os'] =~ /darwin/
+                        'pbcopy'
+                      elsif ENV['WAYLAND_DISPLAY']
+                        'wl-copy'
+                      elsif ENV['DISPLAY']
+                        'xclip -selection clipboard'
+                      end
 
-      # Also try OSC 52 which might work depending on terminal/Screen config
+      if clipboard_cmd
+        IO.popen(clipboard_cmd, 'w') { |io| io.write(text) }
+        ProfanityLog.write('Clipboard', "Copied #{text.length} chars via #{clipboard_cmd}")
+      end
+
+      # OSC 52 for remote/SSH sessions (write to tty to avoid curses interference)
       encoded = [text].pack('m0')
-      print "\e]52;c;#{encoded}\a"
-      $stdout.flush
+      begin
+        File.open('/dev/tty', 'w') { |tty| tty.write("\e]52;c;#{encoded}\a") }
+      rescue StandardError
+        nil # /dev/tty may not be available in all environments
+      end
 
-      ProfanityLog.write('Clipboard', "Saved #{text.length} chars to /tmp/profanity_selection.txt")
+      # Always write to file as fallback
+      File.write('/tmp/profanity_selection.txt', text)
     rescue StandardError => e
       ProfanityLog.write('Clipboard', "Error: #{e.message}")
     end
