@@ -373,8 +373,6 @@ class TabbedTextWindow < BaseWindow
     start_y -= TAB_BAR_HEIGHT
     end_y -= TAB_BAR_HEIGHT
 
-    ProfanityLog.write('extract_sel:tabbed', "adj_start=(#{start_y},#{start_x}) adj_end=(#{end_y},#{end_x}) content_h=#{content_height} tab=#{@active_tab}")
-
     return '' if start_y < 0 && end_y < 0
 
     start_y = [start_y, 0].max
@@ -382,7 +380,7 @@ class TabbedTextWindow < BaseWindow
 
     tab_buffer = @tabs[@active_tab] || []
     tab_buffer_pos = @buffer_positions[@active_tab] || 0
-    ch = content_height
+    visible_lines = [tab_buffer.length - tab_buffer_pos, content_height].min
 
     if start_y > end_y || (start_y == end_y && start_x > end_x)
       start_y, end_y = end_y, start_y
@@ -391,12 +389,10 @@ class TabbedTextWindow < BaseWindow
 
     lines = []
     (start_y..end_y).each do |y|
-      buffer_idx = tab_buffer_pos + (ch - 1 - y)
-      ProfanityLog.write('extract_sel:tabbed', "  y=#{y} buffer_idx=#{buffer_idx} buf_len=#{tab_buffer.length}")
+      buffer_idx = tab_buffer_pos + (visible_lines - 1 - y)
       next if buffer_idx >= tab_buffer.length || buffer_idx < 0
 
       line_text = tab_buffer[buffer_idx][0] || ''
-      ProfanityLog.write('extract_sel:tabbed', "  text=#{line_text.inspect[0..60]}")
       lines << if y == start_y && y == end_y
                  line_text[start_x...end_x]
                elsif y == start_y
@@ -407,7 +403,6 @@ class TabbedTextWindow < BaseWindow
                  line_text
                end
     end
-    ProfanityLog.write('extract_sel:tabbed', "  result=#{lines.join("\n").inspect[0..60]}")
     lines.join("\n")
   end
 
@@ -420,21 +415,20 @@ class TabbedTextWindow < BaseWindow
   # @return [String, nil] the link command string, or nil if no link at that position
   def link_cmd_at(rel_y, rel_x)
     content_y = rel_y - TAB_BAR_HEIGHT
-    ProfanityLog.write('link_cmd_at:tabbed', "rel=(#{rel_y},#{rel_x}) content_y=#{content_y} active_tab=#{@active_tab}")
     return nil if content_y < 0
 
     tab_buffer = @tabs[@active_tab] || []
     tab_buffer_pos = @buffer_positions[@active_tab] || 0
-    buffer_idx = tab_buffer_pos + (content_height - 1 - content_y)
-    ProfanityLog.write('link_cmd_at:tabbed', "  buffer_idx=#{buffer_idx} buffer_pos=#{tab_buffer_pos} content_h=#{content_height} buf_len=#{tab_buffer.length}")
+    visible_lines = [tab_buffer.length - tab_buffer_pos, content_height].min
+    return nil if content_y >= visible_lines
+
+    buffer_idx = tab_buffer_pos + (visible_lines - 1 - content_y)
     return nil if buffer_idx < 0 || buffer_idx >= tab_buffer.length
 
-    text, colors = tab_buffer[buffer_idx]
-    ProfanityLog.write('link_cmd_at:tabbed', "  text=#{text.inspect[0..80]} colors_count=#{colors&.length}")
+    _text, colors = tab_buffer[buffer_idx]
     return nil unless colors
 
     colors.each do |h|
-      ProfanityLog.write('link_cmd_at:tabbed', "  span: start=#{h[:start]} end=#{h[:end]} cmd=#{h[:cmd].inspect} fg=#{h[:fg]}") if h[:cmd] || (rel_x >= h[:start] && rel_x < h[:end])
       return h[:cmd] if h[:cmd] && rel_x >= h[:start] && rel_x < h[:end]
     end
     nil

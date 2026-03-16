@@ -141,7 +141,8 @@ class TextWindow < BaseWindow
 
   # Extract text from buffer for a selection region.
   # Buffer is stored in reverse order: @buffer[0] = newest line.
-  # Window y=0 is top, y=maxy-1 is bottom (showing newest when not scrolled).
+  # Text fills from the top of the window; visible_lines accounts for
+  # partially-filled buffers.
   #
   # @param start_y [Integer] starting row (window-relative)
   # @param start_x [Integer] starting column
@@ -149,15 +150,16 @@ class TextWindow < BaseWindow
   # @param end_x [Integer] ending column
   # @return [String] the selected text, lines joined by newlines
   def extract_selection(start_y, start_x, end_y, end_x)
-    # Normalize coordinates (ensure start before end)
     if start_y > end_y || (start_y == end_y && start_x > end_x)
       start_y, end_y = end_y, start_y
       start_x, end_x = end_x, start_x
     end
 
+    visible_lines = [@buffer.length - @buffer_pos, maxy].min
+
     lines = []
     (start_y..end_y).each do |y|
-      buffer_idx = @buffer_pos + (maxy - 1 - y)
+      buffer_idx = @buffer_pos + (visible_lines - 1 - y)
       next if buffer_idx >= @buffer.length || buffer_idx < 0
 
       line_text = @buffer[buffer_idx][0] || ''
@@ -183,20 +185,20 @@ class TextWindow < BaseWindow
     start_y, start_x = @selection_start
     end_y, end_x = @selection_end
 
-    # Normalize
     if start_y > end_y || (start_y == end_y && start_x > end_x)
       start_y, end_y = end_y, start_y
       start_x, end_x = end_x, start_x
     end
 
-    # Redraw visible lines with highlight
+    visible_lines = [@buffer.length - @buffer_pos, maxy].min
+
     (0...maxy).each do |y|
-      buffer_idx = @buffer_pos + (maxy - 1 - y)
+      buffer_idx = @buffer_pos + (visible_lines - 1 - y)
+      setpos(y, 0)
+      clrtoeol
       next if buffer_idx >= @buffer.length || buffer_idx < 0
 
       line_text, line_colors = @buffer[buffer_idx]
-      setpos(y, 0)
-      clrtoeol
 
       if y >= start_y && y <= end_y
         draw_line_with_selection(y, line_text, line_colors, start_y, start_x, end_y, end_x)
@@ -215,16 +217,16 @@ class TextWindow < BaseWindow
   # @param rel_x [Integer] column relative to window left
   # @return [String, nil] the link command string, or nil if no link at that position
   def link_cmd_at(rel_y, rel_x)
-    buffer_idx = @buffer_pos + (maxy - 1 - rel_y)
-    ProfanityLog.write('link_cmd_at', "rel=(#{rel_y},#{rel_x}) buffer_idx=#{buffer_idx} buffer_pos=#{@buffer_pos} maxy=#{maxy} buffer_len=#{@buffer.length}")
+    visible_lines = [@buffer.length - @buffer_pos, maxy].min
+    return nil if rel_y >= visible_lines
+
+    buffer_idx = @buffer_pos + (visible_lines - 1 - rel_y)
     return nil if buffer_idx < 0 || buffer_idx >= @buffer.length
 
-    text, colors = @buffer[buffer_idx]
-    ProfanityLog.write('link_cmd_at', "  text=#{text.inspect[0..80]} colors_count=#{colors&.length}")
+    _text, colors = @buffer[buffer_idx]
     return nil unless colors
 
     colors.each do |h|
-      ProfanityLog.write('link_cmd_at', "  span: start=#{h[:start]} end=#{h[:end]} cmd=#{h[:cmd].inspect} fg=#{h[:fg]}") if h[:cmd] || (rel_x >= h[:start] && rel_x < h[:end])
       return h[:cmd] if h[:cmd] && rel_x >= h[:start] && rel_x < h[:end]
     end
     nil
