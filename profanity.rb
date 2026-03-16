@@ -799,14 +799,17 @@ begin
           SelectionManager.start_selection(window, rel_y, rel_x)
         end
       elsif (bstate & Curses::BUTTON1_RELEASED) != 0
+        ProfanityLog.write('Mouse', "RELEASED: selecting=#{SelectionManager.selecting} active_window=#{SelectionManager.active_window&.class}")
         if SelectionManager.selecting
           window = SelectionManager.active_window
           if window
             rel_y = screen_y - window.begy
             rel_x = screen_x - window.begx
             start_pos = SelectionManager.start_pos
+            ProfanityLog.write('Mouse', "  start_pos=#{start_pos.inspect} rel=(#{rel_y},#{rel_x}) dist=#{start_pos ? (start_pos[1] - rel_x).abs : 'n/a'}")
             # Single click (no drag): check for link, skip selection
             if start_pos && start_pos[0] == rel_y && (start_pos[1] - rel_x).abs <= 3
+              ProfanityLog.write('Mouse', "  -> single click path")
               if (link_cmd = window.link_cmd_at(rel_y, rel_x))
                 if (main = window_mgr.stream[MAIN_STREAM])
                   add_prompt(main, shared_state.prompt_text, link_cmd)
@@ -817,10 +820,16 @@ begin
               SelectionManager.clear_selection
             else
               # Actual drag: finalize selection and copy to clipboard
-              SelectionManager.update_selection(rel_y, rel_x)
-              SelectionManager.end_selection
+              ProfanityLog.write('Mouse', "  -> drag path, calling update_selection + end_selection")
+              begin
+                SelectionManager.update_selection(rel_y, rel_x)
+                SelectionManager.end_selection
+              rescue StandardError => e
+                ProfanityLog.write('Mouse', "  EXCEPTION in selection: #{e.message}", backtrace: e.backtrace)
+              end
             end
           else
+            ProfanityLog.write('Mouse', "  -> no active_window")
             SelectionManager.clear_selection
           end
         end
