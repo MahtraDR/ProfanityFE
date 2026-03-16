@@ -20,6 +20,13 @@ Ported from elanthia-online/ProfanityFE.
 class MouseScroll
   MIN_EVENT_COUNT = 20
 
+  # Bitmask for mouse click events (BUTTON1 press/release/click).
+  # Always included in the mouse mask so clickable links work regardless
+  # of whether scroll wheel calibration has been performed.
+  CLICK_EVENTS = Curses::BUTTON1_PRESSED | Curses::BUTTON1_RELEASED |
+                 (defined?(Curses::BUTTON1_CLICKED) ? Curses::BUTTON1_CLICKED : 0) |
+                 Curses::REPORT_MOUSE_POSITION
+
   # @param key_action [Hash<String, Proc>] the key action registry
   # @param display_fn [Proc] callback to display messages: display_fn.call(text)
   def initialize(key_action, display_fn)
@@ -32,17 +39,24 @@ class MouseScroll
     @bstate_counts = {}
 
     load_settings
+    # Enable click events even without scroll calibration (for clickable links)
+    enable_click_events
   end
 
   # Process a mouse event from the input loop.
-  # Call this when +ch == Curses::KEY_MOUSE+.
+  # Accepts either a key code (legacy) or a pre-fetched mouse event object.
+  # When called with a mouse event, avoids double-consuming via Curses.getmouse.
   #
-  # @param ch [Integer] the key code (must be KEY_MOUSE)
+  # @param event [Integer, Curses::MouseEvent] KEY_MOUSE code or a mouse event object
   # @return [void]
-  def process(ch)
-    return unless ch == Curses::KEY_MOUSE
+  def process(event)
+    if event.is_a?(Integer)
+      return unless event == Curses::KEY_MOUSE
 
-    m = Curses.getmouse
+      m = Curses.getmouse
+    else
+      m = event
+    end
     return unless m
 
     bstate = m.respond_to?(:bstate) ? m.bstate : nil
@@ -95,7 +109,17 @@ class MouseScroll
     return unless @button4_mask && @button5_mask
 
     @listener_enabled = true
-    Curses.mousemask(@button4_mask | @button5_mask)
+    Curses.mousemask(@button4_mask | @button5_mask | CLICK_EVENTS)
+  end
+
+  # Enable mouse click events without scroll calibration.
+  # Called at startup so clickable links work immediately.
+  #
+  # @return [void]
+  def enable_click_events
+    return if @listener_enabled # Already includes CLICK_EVENTS
+
+    Curses.mousemask(CLICK_EVENTS)
   end
 
   # Cancel calibration and reset state to idle.
@@ -130,7 +154,7 @@ class MouseScroll
       @config_state = :idle
       @bstate_counts = {}
       @listener_enabled = true
-      Curses.mousemask(@button4_mask | @button5_mask)
+      Curses.mousemask(@button4_mask | @button5_mask | CLICK_EVENTS)
       ProfanitySettings.save_mouse_settings(@button4_mask, @button5_mask)
       @display_fn.call('[PROFANITY] Scroll wheel configuration complete!')
     end
@@ -144,7 +168,7 @@ class MouseScroll
     return unless @button4_mask && @button5_mask
 
     unless @listener_enabled
-      Curses.mousemask(@button4_mask | @button5_mask)
+      Curses.mousemask(@button4_mask | @button5_mask | CLICK_EVENTS)
       @listener_enabled = true
     end
 

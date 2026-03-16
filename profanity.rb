@@ -759,76 +759,79 @@ begin
 
     # Handle mouse events first
     if ch == Curses::KEY_MOUSE
-      if mouse_scroll.configuring?
-        mouse_scroll.process(ch)
+      mouse = Curses.getmouse
+      unless mouse
         next
       end
-      mouse_scroll.process(ch)
 
-      mouse = Curses.getmouse
-      if mouse
-        screen_y = mouse.y
-        screen_x = mouse.x
-        bstate = mouse.bstate
+      if mouse_scroll.configuring?
+        mouse_scroll.process(mouse)
+        next
+      end
+      # Pass the same event to scroll handler (no double getmouse)
+      mouse_scroll.process(mouse)
 
-        ProfanityLog.write('Mouse', "bstate=#{bstate} at (#{screen_y},#{screen_x})")
+      screen_y = mouse.y
+      screen_x = mouse.x
+      bstate = mouse.bstate
 
-        if (bstate & Curses::BUTTON1_PRESSED) != 0
-          window = BaseWindow.find_window_at(screen_y, screen_x)
+      ProfanityLog.write('Mouse', "bstate=#{bstate} at (#{screen_y},#{screen_x})")
+
+      if (bstate & Curses::BUTTON1_PRESSED) != 0
+        window = BaseWindow.find_window_at(screen_y, screen_x)
+        if window
+          rel_y = screen_y - window.begy
+          rel_x = screen_x - window.begx
+          SelectionManager.start_selection(window, rel_y, rel_x)
+        end
+      elsif (bstate & Curses::BUTTON1_RELEASED) != 0
+        if SelectionManager.selecting
+          window = SelectionManager.active_window
           if window
             rel_y = screen_y - window.begy
             rel_x = screen_x - window.begx
-            SelectionManager.start_selection(window, rel_y, rel_x)
-          end
-        elsif (bstate & Curses::BUTTON1_RELEASED) != 0
-          if SelectionManager.selecting
-            window = SelectionManager.active_window
-            if window
-              rel_y = screen_y - window.begy
-              rel_x = screen_x - window.begx
-              # Check for link click: press and release at same position
-              start_pos = SelectionManager.start_pos
-              if start_pos && start_pos == [rel_y, rel_x]
-                if (link_cmd = window.link_cmd_at(rel_y, rel_x))
-                  if (main = window_mgr.stream[MAIN_STREAM])
-                    add_prompt(main, shared_state.prompt_text, link_cmd)
-                    Curses.doupdate
-                  end
-                  server.puts link_cmd
-                  SelectionManager.clear_selection
-                  next
+            # Check for link click: press and release at same position
+            start_pos = SelectionManager.start_pos
+            if start_pos && start_pos == [rel_y, rel_x]
+              if (link_cmd = window.link_cmd_at(rel_y, rel_x))
+                if (main = window_mgr.stream[MAIN_STREAM])
+                  add_prompt(main, shared_state.prompt_text, link_cmd)
+                  Curses.doupdate
                 end
+                server.puts link_cmd
+                SelectionManager.clear_selection
+                next
               end
-              SelectionManager.update_selection(rel_y, rel_x)
             end
-            SelectionManager.end_selection
+            SelectionManager.update_selection(rel_y, rel_x)
           end
-        elsif defined?(Curses::BUTTON1_CLICKED) && (bstate & Curses::BUTTON1_CLICKED) != 0
-          window = BaseWindow.find_window_at(screen_y, screen_x)
-          if window
-            rel_y = screen_y - window.begy
-            rel_x = screen_x - window.begx
-            # Check for clickable link before starting selection
-            if (link_cmd = window.link_cmd_at(rel_y, rel_x))
-              if (main = window_mgr.stream[MAIN_STREAM])
-                add_prompt(main, shared_state.prompt_text, link_cmd)
-                Curses.doupdate
-              end
-              server.puts link_cmd
-            else
-              SelectionManager.start_selection(window, rel_y, rel_x)
-              SelectionManager.end_selection
-            end
-          end
-        elsif (bstate & Curses::REPORT_MOUSE_POSITION) != 0
-          if SelectionManager.selecting
-            window = SelectionManager.active_window
-            if window
-              rel_y = screen_y - window.begy
-              rel_x = screen_x - window.begx
-              SelectionManager.update_selection(rel_y, rel_x)
+          SelectionManager.end_selection
+        end
+      elsif defined?(Curses::BUTTON1_CLICKED) && (bstate & Curses::BUTTON1_CLICKED) != 0
+        window = BaseWindow.find_window_at(screen_y, screen_x)
+        if window
+          rel_y = screen_y - window.begy
+          rel_x = screen_x - window.begx
+          # Check for clickable link before starting selection
+          if (link_cmd = window.link_cmd_at(rel_y, rel_x))
+            if (main = window_mgr.stream[MAIN_STREAM])
+              add_prompt(main, shared_state.prompt_text, link_cmd)
               Curses.doupdate
             end
+            server.puts link_cmd
+          else
+            SelectionManager.start_selection(window, rel_y, rel_x)
+            SelectionManager.end_selection
+          end
+        end
+      elsif (bstate & Curses::REPORT_MOUSE_POSITION) != 0
+        if SelectionManager.selecting
+          window = SelectionManager.active_window
+          if window
+            rel_y = screen_y - window.begy
+            rel_x = screen_x - window.begx
+            SelectionManager.update_selection(rel_y, rel_x)
+            Curses.doupdate
           end
         end
       end
