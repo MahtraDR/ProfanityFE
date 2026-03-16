@@ -87,7 +87,7 @@ module Autocomplete
     # Type the remaining characters into the buffer
     completion[original.length..].each_char { |ch| cmd_buffer.put_ch(ch) }
     cmd_buffer.refresh
-    Curses.doupdate
+    CursesRenderer.doupdate
   end
 
   # Display a message in the main window with autocomplete highlight color.
@@ -100,6 +100,6 @@ module Autocomplete
     return unless window
 
     window.add_string(text, [{ fg: HIGHLIGHT_COLOR, start: 0, end: text.length }])
-    Curses.doupdate
+    CursesRenderer.doupdate
   end
 end

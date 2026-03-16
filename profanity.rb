@@ -34,6 +34,9 @@ require_relative 'lib/curses_setup'
 # Load global constants (HIGHLIGHT, PRESET, LAYOUT, etc.)
 require_relative 'lib/constants'
 
+# Thread-safe curses rendering (must be loaded before any doupdate calls)
+require_relative 'lib/curses_renderer'
+
 # Centralized highlight processing (must be loaded before windows)
 require_relative 'lib/highlight_processor'
 
@@ -259,11 +262,14 @@ def update_process_title(char_name, prompt_text, room_text = '')
   parts = [prompt_text, room_text].reject(&:empty?).join(':')
   title = parts.empty? ? char_name : "#{char_name} [#{parts}]"
   Process.setproctitle(title)
-  # Terminal title (xterm/iTerm/etc.)
-  $stdout.print "\033]0;#{title}\007"
-  # Screen/tmux window name
-  $stdout.print "\ek#{title}\e\\"
-  $stdout.flush
+  # Synchronize terminal escape sequences with curses output to prevent
+  # interleaved writes that cause display corruption (especially on
+  # MobaXterm and other Windows terminal emulators).
+  CursesRenderer.synchronize do
+    $stdout.print "\033]0;#{title}\007"  # xterm/iTerm/etc.
+    $stdout.print "\ek#{title}\e\\"      # screen/tmux
+    $stdout.flush
+  end
 rescue StandardError
   # ignore title update failures
 end
@@ -309,7 +315,7 @@ write_to_client = proc { |text|
   if (window = window_mgr.stream[MAIN_STREAM])
     window.add_string(text, feedback_colors.call(text))
     cmd_buffer.refresh
-    Curses.doupdate
+    CursesRenderer.doupdate
   end
 }
 mouse_scroll = MouseScroll.new(key_action, write_to_client)
@@ -361,7 +367,7 @@ do_macro = proc { |macro|
     # Direct position set for backfill (rare macro feature)
     backfill = nil
   end
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 # ========== COMMAND DISPATCH ==========
@@ -426,11 +432,11 @@ execute_command = proc { |cmd|
       window.add_string('* ', feedback_colors.call('* '))
       window.add_string(msg, feedback_colors.call(msg))
       cmd_buffer.refresh
-      Curses.doupdate
+      CursesRenderer.doupdate
       msg = "* Detected keycode: #{cmd_buffer.window.getch}"
       window.add_string(msg, feedback_colors.call(msg))
       window.add_string('* ', feedback_colors.call('* '))
-      Curses.doupdate
+      CursesRenderer.doupdate
     end
   elsif cmd =~ /^\.fixcolor/i
     # Reinitialize custom Curses color pairs (fixes palette corruption)
@@ -465,10 +471,10 @@ execute_command = proc { |cmd|
       end
     elsif arg =~ /^\d+$/
       TabbedTextWindow.list.each { |w| w.switch_tab_by_index(arg.to_i) }
-      Curses.doupdate
+      CursesRenderer.doupdate
     else
       TabbedTextWindow.list.each { |w| w.switch_tab(arg) }
-      Curses.doupdate
+      CursesRenderer.doupdate
     end
   elsif cmd =~ /^\.arrow/i
     # Cycle arrow key mode: history -> page scroll -> line scroll
@@ -483,7 +489,7 @@ execute_command = proc { |cmd|
              end
       msg = "* Arrow mode: #{mode}"
       window.add_string(msg, feedback_colors.call(msg))
-      Curses.doupdate
+      CursesRenderer.doupdate
     end
   elsif cmd =~ /^\.links/i
     # Toggle in-game link highlighting and clickable links
@@ -501,7 +507,7 @@ execute_command = proc { |cmd|
               '* Links: OFF (native terminal selection)'
             end
       window.add_string(msg, feedback_colors.call(msg))
-      Curses.doupdate
+      CursesRenderer.doupdate
     end
   elsif cmd =~ /^\.scrollcfg/i
     # Open interactive mouse scroll wheel configuration dialog
@@ -511,7 +517,7 @@ execute_command = proc { |cmd|
       window.add_string('* ', feedback_colors.call('* '))
       DOT_COMMAND_HELP.each { |line| msg = "*   #{line}"; window.add_string(msg, feedback_colors.call(msg)) }
       window.add_string('* ', feedback_colors.call('* '))
-      Curses.doupdate
+      CursesRenderer.doupdate
     end
   else
     # Not a dot-command — forward to game server with '.' replaced by ';'
@@ -526,7 +532,7 @@ send_history_command = proc { |index|
     if (window = window_mgr.stream[MAIN_STREAM])
       add_prompt(window, shared_state.prompt_text, cmd)
       cmd_buffer.refresh
-      Curses.doupdate
+      CursesRenderer.doupdate
     end
     execute_command.call(cmd)
   end
@@ -536,47 +542,47 @@ send_history_command = proc { |index|
 
 key_action['resize'] = proc {
   window_mgr.resize(cmd_buffer)
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_left'] = proc {
   cmd_buffer.cursor_left
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_right'] = proc {
   cmd_buffer.cursor_right
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_word_left'] = proc {
   cmd_buffer.cursor_word_left
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_word_right'] = proc {
   cmd_buffer.cursor_word_right
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_home'] = proc {
   cmd_buffer.cursor_home
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_end'] = proc {
   cmd_buffer.cursor_end
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_backspace'] = proc {
   cmd_buffer.backspace
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_delete'] = proc {
   cmd_buffer.delete_char
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_backspace_word'] = proc {
@@ -589,12 +595,12 @@ key_action['cursor_delete_word'] = proc {
 
 key_action['cursor_kill_forward'] = proc {
   cmd_buffer.kill_forward
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_kill_line'] = proc {
   cmd_buffer.kill_line
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['cursor_yank'] = proc {
@@ -610,20 +616,20 @@ key_action['switch_current_window'] = proc {
     current_scroll_window.set_active(true)
   end
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['next_tab'] = proc {
   TabbedTextWindow.list.each(&:next_tab)
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 key_action['switch_tab'] = key_action['next_tab']
 
 key_action['prev_tab'] = proc {
   TabbedTextWindow.list.each(&:prev_tab)
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 key_action['switch_tab_reverse'] = key_action['prev_tab']
 
@@ -631,20 +637,20 @@ key_action['switch_tab_reverse'] = key_action['prev_tab']
   key_action["switch_tab_#{n}"] = proc {
     TabbedTextWindow.list.each { |w| w.switch_tab_by_index(n) }
     cmd_buffer.refresh
-    Curses.doupdate
+    CursesRenderer.doupdate
   }
 end
 
 key_action['scroll_current_window_up_one'] = proc {
   SCROLL_WINDOW[0]&.scroll(-1)
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['scroll_current_window_down_one'] = proc {
   SCROLL_WINDOW[0]&.scroll(1)
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['scroll_current_window_up_page'] = proc {
@@ -652,7 +658,7 @@ key_action['scroll_current_window_up_page'] = proc {
     w.scroll(0 - w.maxy + 1)
   end
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['scroll_current_window_down_page'] = proc {
@@ -660,23 +666,23 @@ key_action['scroll_current_window_down_page'] = proc {
     w.scroll(w.maxy - 1)
   end
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['scroll_current_window_bottom'] = proc {
   SCROLL_WINDOW[0]&.scroll(SCROLL_WINDOW[0]&.max_buffer_size)
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['previous_command'] = proc {
   cmd_buffer.previous_command
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['next_command'] = proc {
   cmd_buffer.next_command
-  Curses.doupdate
+  CursesRenderer.doupdate
 }
 
 key_action['switch_arrow_mode'] = proc {
@@ -699,7 +705,7 @@ key_action['send_command'] = proc {
     add_prompt(window, shared_state.prompt_text, cmd)
   end
   cmd_buffer.refresh
-  Curses.doupdate
+  CursesRenderer.doupdate
   cmd_buffer.add_to_history(cmd)
   execute_command.call(cmd)
 }
@@ -793,7 +799,7 @@ begin
         if (link_cmd = window.link_cmd_at(rel_y, rel_x))
           if (main = window_mgr.stream[MAIN_STREAM])
             add_prompt(main, shared_state.prompt_text, link_cmd)
-            Curses.doupdate
+            CursesRenderer.doupdate
           end
           server.puts link_cmd
           true
@@ -824,7 +830,7 @@ begin
               # Actual drag: finalize selection and copy to clipboard
               SelectionManager.update_selection(rel_y, rel_x)
               SelectionManager.end_selection
-              Curses.doupdate
+              CursesRenderer.doupdate
             end
           else
             SelectionManager.clear_selection
@@ -859,7 +865,7 @@ begin
     elsif ch.instance_of?(String)
       cmd_buffer.put_ch(ch)
       cmd_buffer.refresh
-      Curses.doupdate
+      CursesRenderer.doupdate
     end
   end
 rescue StandardError => e

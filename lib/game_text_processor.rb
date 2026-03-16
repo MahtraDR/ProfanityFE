@@ -230,11 +230,10 @@ class GameTextProcessor
                 sleep 0.15
                 while (@wm.countdown['roundtime'].end_time == temp_roundtime_end) and (@wm.countdown['roundtime'].value > 0)
                   sleep 0.15
-                  next unless @wm.countdown['roundtime'].update
+                  CursesRenderer.render do
+                    next unless @wm.countdown['roundtime'].update
 
-                  CURSES_MUTEX.synchronize do
                     @cmd_buffer.window&.noutrefresh
-                    Curses.doupdate
                   end
                 end
               rescue StandardError => e
@@ -250,11 +249,10 @@ class GameTextProcessor
               Thread.new do
                 while (@wm.countdown['roundtime'].secondary_end_time == temp_casttime_end) and (@wm.countdown['roundtime'].secondary_value > 0)
                   sleep 0.15
-                  next unless @wm.countdown['roundtime'].update
+                  CursesRenderer.render do
+                    next unless @wm.countdown['roundtime'].update
 
-                  CURSES_MUTEX.synchronize do
                     @cmd_buffer.window&.noutrefresh
-                    Curses.doupdate
                   end
                 end
               rescue StandardError => e
@@ -490,9 +488,8 @@ class GameTextProcessor
       next unless @need_update and !IO.select([server], nil, nil, 0.001)
 
       @need_update = false
-      CURSES_MUTEX.synchronize do
+      CursesRenderer.render do
         @cmd_buffer.window&.noutrefresh
-        Curses.doupdate
       end
     end
     # After loop exits (connection closed):
@@ -519,9 +516,8 @@ class GameTextProcessor
     ['* ', '* Connection closed', '* Press any key to exit...', '* '].each do |msg|
       window.add_string(msg, [{ start: 0, end: msg.length, fg: FEEDBACK_COLOR, bg: nil, ul: nil }])
     end
-    CURSES_MUTEX.synchronize do
+    CursesRenderer.render do
       @cmd_buffer.window&.noutrefresh
-      Curses.doupdate
     end
   end
 
@@ -551,11 +547,10 @@ class GameTextProcessor
       Thread.new do
         while (window.end_time == temp_stun_end) && (window.value > 0)
           sleep 0.15
-          next unless window.update
+          CursesRenderer.render do
+            next unless window.update
 
-          CURSES_MUTEX.synchronize do
             @cmd_buffer.window&.noutrefresh
-            Curses.doupdate
           end
         end
       rescue StandardError => e

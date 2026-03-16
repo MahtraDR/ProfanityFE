@@ -176,7 +176,7 @@ class WindowManager
         window.close
       end
 
-      Curses.doupdate
+      CursesRenderer.doupdate
     end
   end
 
@@ -245,7 +245,7 @@ class WindowManager
       @command_window.noutrefresh
     end
 
-    Curses.doupdate
+    CursesRenderer.doupdate
   end
 end
 

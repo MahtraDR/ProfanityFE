@@ -32,10 +32,6 @@ DEFAULT_TERMINAL_WIDTH = 80
 
 SETTINGS_LOCK = Mutex.new
 
-# Mutex for serializing Curses rendering calls across threads (timer threads, server thread, input thread).
-# ncurses is not thread-safe — all noutrefresh/doupdate calls must be synchronized.
-CURSES_MUTEX = Mutex.new
-
 # Populated by load_settings_file from XML config - maps Regexp => [fg, bg, ul]
 HIGHLIGHT = {}
 
