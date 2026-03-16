@@ -159,9 +159,6 @@ class SharedState
     # no interleaving possible.  Array form of system() avoids shell
     # injection and bypasses the shell entirely.
     system('printf', '\033]0;%s\007', title)
-    return unless ENV['TERM']&.match?(/^screen|^tmux/)
-
-    system('printf', '\ek%s\e\\', title)
   rescue StandardError
     # ignore title update failures (e.g. no controlling terminal)
   end
