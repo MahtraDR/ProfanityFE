@@ -35,6 +35,9 @@ class GameTextProcessor
   include RoomDataProcessor
   include FamiliarNotifier
 
+  # Default link color [fg, bg] when no 'links' preset is defined in the template
+  DEFAULT_LINK_COLOR = ['5555ff', nil].freeze
+
   # Create a new processor wired to the given window manager and shared state.
   #
   # @param window_mgr [WindowManager] provides handler hashes for stream/indicator/progress/countdown/room windows
@@ -420,19 +423,16 @@ class GameTextProcessor
           # In-game link highlighting for both GemStone (<a>...</a>) and
           # DragonRealms (<d cmd='...'>...</d>) clickable tags.
           # Controlled by .links dot-command or --links CLI flag.
-          # Uses the 'links' preset color defined in the template XML.
+          # Uses the 'links' preset color from template XML, falls back to blue.
           elsif xml =~ /^<[ad][\s>]/
-            ProfanityLog.write('links', "OPEN tag=#{xml.inspect} start_pos=#{start_pos} blue_links=#{@state.blue_links} preset=#{PRESET['links'].inspect} line=#{line.inspect}")
-            if @state.blue_links && (preset = PRESET['links'])
+            if @state.blue_links
+              preset = PRESET['links'] || DEFAULT_LINK_COLOR
               @open_link.push({ start: start_pos, fg: preset[0], bg: preset[1], priority: 2 })
-              ProfanityLog.write('links', "  pushed open_link: start=#{start_pos} fg=#{preset[0]} bg=#{preset[1]}")
             end
           elsif xml =~ %r{^</[ad]>$}
-            ProfanityLog.write('links', "CLOSE tag=#{xml.inspect} start_pos=#{start_pos} open_link_size=#{@open_link.size} line=#{line.inspect}")
             if (h = @open_link.pop)
               h[:end] = start_pos
               @line_colors.push(h) if h[:fg] or h[:bg]
-              ProfanityLog.write('links', "  color span: start=#{h[:start]} end=#{h[:end]} fg=#{h[:fg]} bg=#{h[:bg]} text=#{line[h[:start]...h[:end]].inspect}")
             end
           elsif xml =~ %r{^<(?:dialogdata|/?component|label|skin|output)}
             nil
