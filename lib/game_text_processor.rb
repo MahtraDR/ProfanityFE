@@ -206,6 +206,7 @@ class GameTextProcessor
             else
               @state.need_prompt = true
             end
+            @state.update_terminal_title
           elsif (spell_match = xml.match(%r{^<spell(?:>|\s.*?>)(?<spell>.*?)</spell>$}))
             if (window = @wm.indicator['spell'])
               window.clear
@@ -399,12 +400,17 @@ class GameTextProcessor
             # 	@wm.stream['moonWindow'].clear_spells if @wm.stream['moonWindow']
             else
               @current_stream = new_stream
-              # Extract room title from subtitle attribute (e.g., <component id="room" subtitle=" - Room Name">)
-              if new_stream == 'room' && @wm.room['room'] && (sub_match = xml.match(/subtitle=(?<q>"|')(?<sub>.*?)\k<q>/))
+              # Extract room title from subtitle attribute.
+              # DR: <component id="room" subtitle=" - Room Name">
+              # GS: also uses this tag in some cases
+              if new_stream == 'room' && (sub_match = xml.match(/subtitle=(?<q>"|')(?<sub>.*?)\k<q>/))
                 subtitle = sub_match[:sub]
-                # Strip leading " - " if present
                 title = subtitle.sub(/^\s*-\s*/, '').sub(/^\[/, '').sub(/\]$/, '')
-                @wm.room['room'].update_title(title) unless title.empty?
+                unless title.empty?
+                  @state.room_title = title
+                  @state.update_terminal_title
+                  @wm.room['room']&.update_title(title)
+                end
               end
             end
             game_text = line.slice!(0, start_pos)
@@ -442,6 +448,21 @@ class GameTextProcessor
             if (h = @open_link.pop)
               h[:end] = start_pos
               @line_colors.push(h) if h[:fg] or h[:bg]
+            end
+          # GemStone room title: <streamWindow id='room' subtitle=" - [Room Name]"/>
+          # Updates terminal title and room indicator window.
+          elsif (sw_match = xml.match(/^<streamWindow id='room'.*?subtitle=(?<q>"|')\s*-\s*(?<sub>.*?)\k<q>/))
+            room = sw_match[:sub].sub(/^\[/, '').sub(/\]$/, '').strip
+            unless room.empty?
+              @state.room_title = room
+              @state.update_terminal_title
+              if (window = @wm.indicator['room'])
+                window.clear
+                window.label = room
+                window.update(1)
+                @need_update = true
+              end
+              @wm.room['room']&.update_title(room)
             end
           elsif xml =~ %r{^<(?:dialogdata|/?component|label|skin|output)}
             nil

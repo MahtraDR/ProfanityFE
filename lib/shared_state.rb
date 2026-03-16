@@ -15,12 +15,22 @@
 #   state.need_prompt = true
 #   state.consume_prompt!  # => true (was needed), now false
 class SharedState
+  # @return [String, nil] character name for terminal title (nil disables title updates)
+  attr_accessor :char_name
+
+  # @return [Boolean] whether terminal title updates are suppressed
+  attr_accessor :no_status
+
   def initialize
     @mutex = Mutex.new
     @need_prompt = false
     @prompt_text = '>'
+    @room_title = ''
     @skip_server_time_offset = false
     @blue_links = false
+    @char_name = nil
+    @no_status = false
+    @last_title = nil
   end
 
   # @return [Boolean] whether a prompt display is pending
@@ -43,6 +53,17 @@ class SharedState
   # @return [void]
   def prompt_text=(val)
     @mutex.synchronize { @prompt_text = val }
+  end
+
+  # @return [String] current room title (for terminal title display)
+  def room_title
+    @mutex.synchronize { @room_title }
+  end
+
+  # @param val [String] new room title
+  # @return [void]
+  def room_title=(val)
+    @mutex.synchronize { @room_title = val }
   end
 
   # @return [Boolean] whether to skip the next server time offset calculation
@@ -96,5 +117,38 @@ class SharedState
       @need_prompt = false
       was
     end
+  end
+
+  # Update the terminal title and process name from current prompt and room.
+  #
+  # Builds "CharName [prompt:room]" from {#prompt_text} and {#room_title},
+  # stripping the trailing ">" from the prompt. No-op when the title hasn't
+  # changed since the last call (dedup, matching EO behavior).
+  #
+  # Sets both the xterm/iTerm OSC 0 title, the screen/tmux window name,
+  # and +Process.setproctitle+.  All terminal escape sequences are
+  # serialized via {CursesRenderer.synchronize} to prevent interleaving
+  # with curses output.
+  #
+  # @return [void]
+  def update_terminal_title
+    return if @char_name.nil? || @no_status
+
+    prompt = @mutex.synchronize { @prompt_text.to_s.delete('>').strip }
+    room   = @mutex.synchronize { @room_title.to_s.strip }
+    parts  = [prompt, room].reject(&:empty?).join(':')
+    title  = parts.empty? ? @char_name : "#{@char_name} [#{parts}]"
+
+    return if title == @last_title
+
+    @last_title = title
+    Process.setproctitle(title)
+    CursesRenderer.synchronize do
+      $stdout.print "\033]0;#{title}\007"  # xterm/iTerm/etc.
+      $stdout.print "\ek#{title}\e\\"      # screen/tmux
+      $stdout.flush
+    end
+  rescue StandardError
+    # ignore title update failures (e.g. no controlling terminal)
   end
 end

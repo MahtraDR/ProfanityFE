@@ -250,34 +250,8 @@ DEFAULT_BACKGROUND_COLOR_ID = cli_default_background_color_id
 Curses.use_default_colors if cli_use_default_colors
 CUSTOM_COLORS = cli_custom_colors.nil? ? Curses.can_change_color? : cli_custom_colors
 
-# Update the terminal title and process name with character info.
-# Shows "CharName [prompt:room]" in terminal tabs and process listings.
-#
-# @param char_name [String] the character name
-# @param prompt_text [String] current game prompt text
-# @param room_text [String] current room name (optional)
-# @return [void]
-def update_process_title(char_name, prompt_text, room_text = '')
-  return if CHAR_NAME.nil? || NO_STATUS
-  parts = [prompt_text, room_text].reject(&:empty?).join(':')
-  title = parts.empty? ? char_name : "#{char_name} [#{parts}]"
-  Process.setproctitle(title)
-  # Synchronize terminal escape sequences with curses output to prevent
-  # interleaved writes that cause display corruption (especially on
-  # MobaXterm and other Windows terminal emulators).
-  CursesRenderer.synchronize do
-    $stdout.print "\033]0;#{title}\007"  # xterm/iTerm/etc.
-    $stdout.print "\ek#{title}\e\\"      # screen/tmux
-    $stdout.flush
-  end
-rescue StandardError
-  # ignore title update failures
-end
-
 NO_STATUS = cli_no_status
 SPEECH_TS = cli_speech_ts
-
-update_process_title(CHAR_NAME || 'ProfanityFE', '')
 
 ColorManager.configure(
   default_color_id: DEFAULT_COLOR_ID,
@@ -300,7 +274,10 @@ xml_escape_list = {
 }
 
 shared_state = SharedState.new
+shared_state.char_name = CHAR_NAME&.capitalize || 'ProfanityFE'
+shared_state.no_status = NO_STATUS
 shared_state.blue_links = cli_links
+shared_state.update_terminal_title
 cmd_buffer = CommandBuffer.new
 window_mgr = WindowManager.new
 
