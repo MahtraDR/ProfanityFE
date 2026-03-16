@@ -373,6 +373,8 @@ class TabbedTextWindow < BaseWindow
     start_y -= TAB_BAR_HEIGHT
     end_y -= TAB_BAR_HEIGHT
 
+    ProfanityLog.write('extract_sel:tabbed', "adj_start=(#{start_y},#{start_x}) adj_end=(#{end_y},#{end_x}) content_h=#{content_height} tab=#{@active_tab}")
+
     return '' if start_y < 0 && end_y < 0
 
     start_y = [start_y, 0].max
@@ -390,9 +392,11 @@ class TabbedTextWindow < BaseWindow
     lines = []
     (start_y..end_y).each do |y|
       buffer_idx = tab_buffer_pos + (ch - 1 - y)
+      ProfanityLog.write('extract_sel:tabbed', "  y=#{y} buffer_idx=#{buffer_idx} buf_len=#{tab_buffer.length}")
       next if buffer_idx >= tab_buffer.length || buffer_idx < 0
 
       line_text = tab_buffer[buffer_idx][0] || ''
+      ProfanityLog.write('extract_sel:tabbed', "  text=#{line_text.inspect[0..60]}")
       lines << if y == start_y && y == end_y
                  line_text[start_x...end_x]
                elsif y == start_y
@@ -403,6 +407,7 @@ class TabbedTextWindow < BaseWindow
                  line_text
                end
     end
+    ProfanityLog.write('extract_sel:tabbed', "  result=#{lines.join("\n").inspect[0..60]}")
     lines.join("\n")
   end
 

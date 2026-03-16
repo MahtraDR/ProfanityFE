@@ -790,9 +790,9 @@ begin
           if window
             rel_y = screen_y - window.begy
             rel_x = screen_x - window.begx
-            # Check for link click: press and release at same position
+            # Check for link click: same row and short drag (within 3 columns)
             start_pos = SelectionManager.start_pos
-            if start_pos && start_pos == [rel_y, rel_x]
+            if start_pos && start_pos[0] == rel_y && (start_pos[1] - rel_x).abs <= 3
               if (link_cmd = window.link_cmd_at(rel_y, rel_x))
                 if (main = window_mgr.stream[MAIN_STREAM])
                   add_prompt(main, shared_state.prompt_text, link_cmd)
