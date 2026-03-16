@@ -33,8 +33,11 @@ module RoomDataProcessor
   #
   # @param text [String] the current line of game text (XML-unescaped)
   # @param line_colors [Array<Hash>] color regions for this line
-  # @return [Boolean] true if this line was consumed as room data (caller
-  #   should not route it to the main window)
+  # @return [Boolean] true if this line was consumed by the RoomWindow
+  #   (caller should not route it to the main window).  Returns false
+  #   when title/desc text is captured for the terminal title but the
+  #   template has no RoomWindow — the text must still flow to the
+  #   main text window for display.
   # @api private
   def process_room_data(text, line_colors)
     return false if text.empty?
@@ -66,10 +69,8 @@ module RoomDataProcessor
       @room_capture_mode = nil
     end
 
-    # Flush the deferred terminal title update outside any curses write.
-    # The title was stored above; the actual escape sequence write is
-    # deferred to the end-of-line doupdate path to avoid interleaving
-    # with curses output.
+    # Without a RoomWindow, remaining room-data patterns (objects, players,
+    # exits) are not applicable — return early with whatever was captured.
     return room_data_captured unless @wm.room['room']
 
     # Detect "You also see" for objects (may have leading whitespace)

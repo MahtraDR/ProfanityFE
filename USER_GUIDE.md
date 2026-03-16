@@ -1735,15 +1735,23 @@ ProfanityFE updates three things to show your character name and game state:
 2. **Terminal title** (title bar of xterm/iTerm/etc.) -- via `\033]0;` escape
 3. **Screen/tmux window name** (window list) -- via `\ek` escape
 
-All three show the same format:
+The process name and terminal title show:
 
 ```
 CharName [prompt:room]
 ```
 
+For DragonRealms, the room includes the room number (e.g.,
+`Charname [H:Bosque Deriel, Shacks (230008)]`). The screen/tmux window
+name shows only the character name to keep the window list compact.
+
+Title escape sequences are written via a forked `printf` subprocess to
+avoid interleaving with curses output. Updates are dedup'd -- the escape
+only fires when the title actually changes.
+
 This is especially useful when running multiple characters in tmux or GNU
-Screen -- each pane/window shows which character is active and what room
-they're in. The title updates dynamically as you move between rooms.
+Screen -- each pane/window shows which character is active. The title
+updates dynamically on every prompt and room change.
 
 Disable this behavior with the `--no-status` flag if your terminal does not
 support title updates or you find it distracting.
@@ -1829,8 +1837,11 @@ standard Lich script command prefix. For example, typing `.e echo hello` sends
   Very large values (10000+) may increase memory usage.
 - ProfanityFE batches screen updates and delays rendering when more server data
   is available, reducing flicker during heavy output.
-- Curses rendering is synchronized with a mutex to prevent display corruption
-  between the input thread, server read thread, and timer threads.
+- Curses rendering is synchronized via `CursesRenderer` (a reentrant `Monitor`)
+  to prevent display corruption between the input thread, server read thread,
+  and timer threads. The server thread holds the monitor for the entire line
+  processing cycle so that indicator, text, and countdown `noutrefresh` calls
+  are flushed atomically with `doupdate`.
 
 ### Command History
 

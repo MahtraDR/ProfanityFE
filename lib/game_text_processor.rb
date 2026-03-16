@@ -453,8 +453,9 @@ class GameTextProcessor
               h[:end] = start_pos
               @line_colors.push(h) if h[:fg] or h[:bg]
             end
-          # GemStone room title: <streamWindow id='room' subtitle=" - [Room Name]"/>
-          # Updates terminal title and room indicator window.
+          # GS/DR room title: <streamWindow id='room' subtitle=" - [Room Name]"/>
+          # Updates room indicator window; terminal title is stored and
+          # flushed after the synchronize block.
           elsif (sw_match = xml.match(/^<streamWindow id='room'.*?subtitle=(?<q>"|')(?<sub>.*?)\k<q>/))
             room = parse_room_subtitle(sw_match[:sub])
             unless room.empty?

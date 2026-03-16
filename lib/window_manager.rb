@@ -187,7 +187,7 @@ class WindowManager
   # stored layout expressions. Triggers a full Curses screen update
   # afterward.
   #
-  # @param cmd_buffer [CommandBuffer] the command-line input buffer, used to refresh the command window cursor position
+  # @param _cmd_buffer [CommandBuffer] unused, retained for call-site compatibility
   # @return [void]
   def resize(_cmd_buffer)
     CursesRenderer.synchronize do
