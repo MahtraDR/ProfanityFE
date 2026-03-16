@@ -125,9 +125,12 @@ class SharedState
   # stripping the trailing ">" from the prompt. No-op when the title hasn't
   # changed since the last call (dedup, matching EO behavior).
   #
-  # Writes escape sequences directly to +/dev/tty+, bypassing curses'
-  # stdout buffer to avoid display corruption. Only emits the screen/tmux
-  # +\\ek+ escape when +$TERM+ indicates a screen/tmux session.
+  # Writes the OSC 0 escape via +$stdout+ (same fd as curses) inside
+  # {CursesRenderer.synchronize} so that the escape bytes cannot be
+  # interleaved with curses output.  The screen/tmux +\\ek+ escape is
+  # only emitted when +$TERM+ indicates a screen/tmux session, since
+  # terminals that don't recognize it (e.g., MobaXterm) render it as
+  # visible text.
   #
   # @return [void]
   def update_terminal_title
@@ -142,22 +145,17 @@ class SharedState
 
     @last_title = title
     Process.setproctitle(title)
-    # Write escape sequences directly to the controlling terminal,
-    # bypassing curses' stdout buffer.  Writing to $stdout while curses
-    # is active can corrupt the display (especially on MobaXterm).
-    # Only emit the screen/tmux escape (\ek) when $TERM indicates it.
-    tty = @tty ||= begin
-      File.open('/dev/tty', 'w')
-    rescue Errno::ENOENT, Errno::EACCES
-      nil
+    # Write via $stdout (same fd as curses) with the curses monitor held
+    # so bytes cannot interleave with curses output.  Using a separate fd
+    # (/dev/tty) causes kernel-level interleaving that splits the escape
+    # sequence, rendering partial bytes as visible text on the screen.
+    CursesRenderer.synchronize do
+      $stdout.print "\033]0;#{title}\007"
+      if ENV['TERM']&.match?(/^screen|^tmux/)
+        $stdout.print "\ek#{title}\e\\"
+      end
+      $stdout.flush
     end
-    return unless tty
-
-    tty.print "\033]0;#{title}\007"
-    if ENV['TERM']&.match?(/^screen|^tmux/)
-      tty.print "\ek#{title}\e\\"
-    end
-    tty.flush
   rescue StandardError
     # ignore title update failures (e.g. no controlling terminal)
   end
