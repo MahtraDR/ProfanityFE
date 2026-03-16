@@ -1383,8 +1383,9 @@ This can also be bound to a key:
 
 Toggle in-game link highlighting and clicking on or off at runtime.
 When enabled, clickable text (inventory items, exits, help links) is
-highlighted and can be clicked to execute the associated command. See
-[Link Display](#13-link-display) for details.
+highlighted and can be clicked to execute the associated command.
+Disables native terminal text selection while active. Toggle off to
+restore text selection. See [Link Display](#13-link-display) for details.
 
 ```
 .links
@@ -1669,6 +1670,11 @@ include a `links` preset by default.
 text sends the associated command to the game server. In DragonRealms, this
 executes the `cmd` attribute (e.g., `get #40872332`). The command is echoed
 to the main window as if you had typed it.
+
+**Text selection tradeoff:** When `.links` is on, mouse clicks are captured
+by the application for link detection. This disables the terminal's native
+text selection. Toggle `.links` off to restore text selection. The two modes
+are mutually exclusive due to how terminal mouse capture works.
 
 To customize the link color, override the `links` preset in your settings XML:
 

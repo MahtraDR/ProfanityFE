@@ -495,7 +495,11 @@ execute_command = proc { |cmd|
       mouse_scroll.disable_click_events
     end
     if (window = window_mgr.stream[MAIN_STREAM])
-      msg = "* Links display: #{shared_state.blue_links ? 'ON' : 'OFF'}"
+      msg = if shared_state.blue_links
+              '* Links: ON (clickable links enabled, text selection disabled)'
+            else
+              '* Links: OFF (text selection enabled)'
+            end
       window.add_string(msg, feedback_colors.call(msg))
       Curses.doupdate
     end
