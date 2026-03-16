@@ -787,6 +787,19 @@ begin
       screen_x = mouse.x
       bstate = mouse.bstate
 
+      # Dispatch a link command if the click is on highlighted link text.
+      # Echoes the command to the main window and sends it to the server.
+      dispatch_link = proc { |window, rel_y, rel_x|
+        if (link_cmd = window.link_cmd_at(rel_y, rel_x))
+          if (main = window_mgr.stream[MAIN_STREAM])
+            add_prompt(main, shared_state.prompt_text, link_cmd)
+            Curses.doupdate
+          end
+          server.puts link_cmd
+          true
+        end
+      }
+
       if (bstate & Curses::BUTTON1_PRESSED) != 0
         # Clear any previous highlight and begin tracking a new selection
         SelectionManager.clear_selection
@@ -805,13 +818,7 @@ begin
             start_pos = SelectionManager.start_pos
             # Single click (no drag): check for link, skip selection
             if start_pos && start_pos[0] == rel_y && (start_pos[1] - rel_x).abs <= 3
-              if (link_cmd = window.link_cmd_at(rel_y, rel_x))
-                if (main = window_mgr.stream[MAIN_STREAM])
-                  add_prompt(main, shared_state.prompt_text, link_cmd)
-                  Curses.doupdate
-                end
-                server.puts link_cmd
-              end
+              dispatch_link.call(window, rel_y, rel_x)
               SelectionManager.clear_selection
             else
               # Actual drag: finalize selection and copy to clipboard
@@ -830,13 +837,7 @@ begin
         if window
           rel_y = screen_y - window.begy
           rel_x = screen_x - window.begx
-          if (link_cmd = window.link_cmd_at(rel_y, rel_x))
-            if (main = window_mgr.stream[MAIN_STREAM])
-              add_prompt(main, shared_state.prompt_text, link_cmd)
-              Curses.doupdate
-            end
-            server.puts link_cmd
-          end
+          dispatch_link.call(window, rel_y, rel_x)
         end
       end
       next

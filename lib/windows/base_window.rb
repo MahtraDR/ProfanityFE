@@ -324,6 +324,22 @@ class BaseWindow < Curses::Window
     nil
   end
 
+  # Normalize selection coordinates so start is before end (top-left to bottom-right).
+  # Shared by TextWindow and TabbedTextWindow for selection extraction and rendering.
+  #
+  # @param start_y [Integer] starting row
+  # @param start_x [Integer] starting column
+  # @param end_y [Integer] ending row
+  # @param end_x [Integer] ending column
+  # @return [Array<Integer>] normalized [start_y, start_x, end_y, end_x]
+  protected def normalize_selection(start_y, start_x, end_y, end_x)
+    if start_y > end_y || (start_y == end_y && start_x > end_x)
+      [end_y, end_x, start_y, start_x]
+    else
+      [start_y, start_x, end_y, end_x]
+    end
+  end
+
   # Draw a single line with reverse-video highlighting for the selected region.
   # Shared by TextWindow and TabbedTextWindow for selection rendering.
   #

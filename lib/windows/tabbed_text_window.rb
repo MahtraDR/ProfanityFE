@@ -386,11 +386,7 @@ class TabbedTextWindow < BaseWindow
     tab_buffer = @tabs[@active_tab] || []
     tab_buffer_pos = @buffer_positions[@active_tab] || 0
     visible_lines = [tab_buffer.length - tab_buffer_pos, content_height].min
-
-    if start_y > end_y || (start_y == end_y && start_x > end_x)
-      start_y, end_y = end_y, start_y
-      start_x, end_x = end_x, start_x
-    end
+    start_y, start_x, end_y, end_x = normalize_selection(start_y, start_x, end_y, end_x)
 
     lines = []
     (start_y..end_y).each do |y|
@@ -424,10 +420,7 @@ class TabbedTextWindow < BaseWindow
     # Adjust for tab bar and normalize
     start_y -= TAB_BAR_HEIGHT
     end_y -= TAB_BAR_HEIGHT
-    if start_y > end_y || (start_y == end_y && start_x > end_x)
-      start_y, end_y = end_y, start_y
-      start_x, end_x = end_x, start_x
-    end
+    start_y, start_x, end_y, end_x = normalize_selection(start_y, start_x, end_y, end_x)
 
     tab_buffer = @tabs[@active_tab] || []
     tab_buffer_pos = @buffer_positions[@active_tab] || 0

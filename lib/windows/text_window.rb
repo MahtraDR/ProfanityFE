@@ -155,11 +155,7 @@ class TextWindow < BaseWindow
   # @param end_x [Integer] ending column
   # @return [String] the selected text, lines joined by newlines
   def extract_selection(start_y, start_x, end_y, end_x)
-    if start_y > end_y || (start_y == end_y && start_x > end_x)
-      start_y, end_y = end_y, start_y
-      start_x, end_x = end_x, start_x
-    end
-
+    start_y, start_x, end_y, end_x = normalize_selection(start_y, start_x, end_y, end_x)
     visible_lines = [@buffer.length - @buffer_pos, maxy].min
 
     lines = []
@@ -187,14 +183,7 @@ class TextWindow < BaseWindow
   def redraw_with_highlight
     return unless @selection_start && @selection_end
 
-    start_y, start_x = @selection_start
-    end_y, end_x = @selection_end
-
-    if start_y > end_y || (start_y == end_y && start_x > end_x)
-      start_y, end_y = end_y, start_y
-      start_x, end_x = end_x, start_x
-    end
-
+    start_y, start_x, end_y, end_x = normalize_selection(*@selection_start, *@selection_end)
     visible_lines = [@buffer.length - @buffer_pos, maxy].min
 
     (0...maxy).each do |y|
