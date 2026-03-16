@@ -389,6 +389,9 @@ do_macro = proc { |macro|
 #   .tab <name>        Switch to tab by name.
 #   .arrow             Cycle up/down arrow keys through three modes:
 #                      history (default) -> page scroll -> line scroll.
+#   .links             Toggle in-game link highlighting (<a> tags). Controlled
+#                      by the 'links' preset color in the template XML.
+#   .scrollcfg         Open interactive mouse scroll wheel configuration.
 #   .help              Show this list of dot-commands.
 #
 # All dot-commands are case-insensitive.
@@ -428,16 +431,21 @@ execute_command = proc { |cmd|
       Curses.doupdate
     end
   elsif cmd =~ /^\.fixcolor/i
+    # Reinitialize custom Curses color pairs (fixes palette corruption)
     ColorManager.reinitialize_colors
   elsif cmd =~ /^\.resync/i
+    # Reset server time offset so the next prompt recalculates roundtime sync
     shared_state.skip_server_time_offset = false
   elsif cmd =~ /^\.reload/i
+    # Hot-reload settings XML: key bindings, highlights, gags, presets
     SettingsLoader.load(SETTINGS_FILENAME, key_binding, key_action, do_macro, reload: true)
   elsif (match = cmd.match(/^\.layout\s+(?<layout>.+)/))
+    # Switch to a named layout defined in settings XML and trigger resize
     window_mgr.load_layout(match[:layout])
     cmd_buffer.window = window_mgr.command_window
     key_action['resize'].call
   elsif cmd =~ /^\.resize/i
+    # Manually recalculate window positions for current terminal dimensions
     key_action['resize'].call
   elsif (match = cmd.match(/^\.tab(?:\s+(?<arg>.+))?/i))
     arg = match[:arg]&.strip
@@ -461,6 +469,7 @@ execute_command = proc { |cmd|
       Curses.doupdate
     end
   elsif cmd =~ /^\.arrow/i
+    # Cycle arrow key mode: history -> page scroll -> line scroll
     key_action['switch_arrow_mode'].call
     if (window = window_mgr.stream[MAIN_STREAM])
       mode = if key_binding[Curses::KEY_UP] == key_action['previous_command']
@@ -475,6 +484,7 @@ execute_command = proc { |cmd|
       Curses.doupdate
     end
   elsif cmd =~ /^\.links/i
+    # Toggle in-game <a> tag link highlighting (uses 'links' preset color)
     shared_state.blue_links = !shared_state.blue_links
     if (window = window_mgr.stream[MAIN_STREAM])
       msg = "* Links display: #{shared_state.blue_links ? 'ON' : 'OFF'}"
@@ -482,6 +492,7 @@ execute_command = proc { |cmd|
       Curses.doupdate
     end
   elsif cmd =~ /^\.scrollcfg/i
+    # Open interactive mouse scroll wheel configuration dialog
     mouse_scroll.start_configuration
   elsif cmd =~ /^\.help/i
     if (window = window_mgr.stream[MAIN_STREAM])
