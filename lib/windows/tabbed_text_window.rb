@@ -239,7 +239,12 @@ class TabbedTextWindow < BaseWindow
 
     return unless tab_name == @active_tab && @buffer_positions[tab_name] == 0
 
-    noutrefresh
+    # Re-apply selection highlight if active (new text overwrites it)
+    if has_highlight?
+      redraw_with_highlight
+    else
+      noutrefresh
+    end
   end
 
   # Append a string to the active tab's buffer.
@@ -387,28 +392,21 @@ class TabbedTextWindow < BaseWindow
       start_x, end_x = end_x, start_x
     end
 
-    ProfanityLog.write('extract_sel', "y=#{start_y}..#{end_y} x=#{start_x}..#{end_x} visible=#{visible_lines} buf_len=#{tab_buffer.length} buf_pos=#{tab_buffer_pos} content_h=#{content_height}")
-
     lines = []
     (start_y..end_y).each do |y|
       buffer_idx = tab_buffer_pos + (visible_lines - 1 - y)
-      if buffer_idx >= tab_buffer.length || buffer_idx < 0
-        ProfanityLog.write('extract_sel', "  y=#{y} buffer_idx=#{buffer_idx} SKIP (out of bounds)")
-        next
-      end
+      next if buffer_idx >= tab_buffer.length || buffer_idx < 0
 
       line_text = tab_buffer[buffer_idx][0] || ''
-      extracted = if y == start_y && y == end_y
-                   line_text[start_x...end_x]
-                 elsif y == start_y
-                   line_text[start_x..-1]
-                 elsif y == end_y
-                   line_text[0...end_x]
-                 else
-                   line_text
-                 end
-      ProfanityLog.write('extract_sel', "  y=#{y} buf_idx=#{buffer_idx} text_len=#{line_text.length} extracted=#{extracted.inspect[0..60]}")
-      lines << extracted
+      lines << if y == start_y && y == end_y
+                 line_text[start_x...end_x]
+               elsif y == start_y
+                 line_text[start_x..-1]
+               elsif y == end_y
+                 line_text[0...end_x]
+               else
+                 line_text
+               end
     end
     lines.join("\n")
   end

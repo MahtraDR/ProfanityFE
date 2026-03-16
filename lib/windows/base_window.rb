@@ -286,6 +286,13 @@ class BaseWindow < Curses::Window
     redraw_with_highlight if respond_to?(:redraw_with_highlight)
   end
 
+  # Whether a selection highlight is currently active on this window.
+  #
+  # @return [Boolean]
+  def has_highlight?
+    !@selection_start.nil? && !@selection_end.nil?
+  end
+
   # Clear the selection highlight and redraw the window normally.
   #
   # @return [void]

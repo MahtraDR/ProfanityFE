@@ -69,7 +69,12 @@ class TextWindow < BaseWindow
     end
     return unless @buffer_pos == 0
 
-    noutrefresh
+    # Re-apply selection highlight if active (new text overwrites it)
+    if has_highlight?
+      redraw_with_highlight
+    else
+      noutrefresh
+    end
   end
 
   # Scroll the buffer by the given number of lines.
