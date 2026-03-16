@@ -832,16 +832,6 @@ begin
             SelectionManager.end_selection
           end
         end
-      elsif (bstate & Curses::REPORT_MOUSE_POSITION) != 0
-        if SelectionManager.selecting
-          window = SelectionManager.active_window
-          if window
-            rel_y = screen_y - window.begy
-            rel_x = screen_x - window.begx
-            SelectionManager.update_selection(rel_y, rel_x)
-            Curses.doupdate
-          end
-        end
       end
       next
     end

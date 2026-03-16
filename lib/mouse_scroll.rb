@@ -21,11 +21,11 @@ class MouseScroll
   MIN_EVENT_COUNT = 20
 
   # Bitmask for mouse click events (BUTTON1 press/release/click).
-  # Always included in the mouse mask so clickable links work regardless
-  # of whether scroll wheel calibration has been performed.
+  # Only included when .links is active for clickable link support.
+  # Does NOT include REPORT_MOUSE_POSITION — that floods the terminal
+  # with escape sequences for every mouse movement.
   CLICK_EVENTS = Curses::BUTTON1_PRESSED | Curses::BUTTON1_RELEASED |
-                 (defined?(Curses::BUTTON1_CLICKED) ? Curses::BUTTON1_CLICKED : 0) |
-                 Curses::REPORT_MOUSE_POSITION
+                 (defined?(Curses::BUTTON1_CLICKED) ? Curses::BUTTON1_CLICKED : 0)
 
   # @param key_action [Hash<String, Proc>] the key action registry
   # @param display_fn [Proc] callback to display messages: display_fn.call(text)
