@@ -405,6 +405,31 @@ class TabbedTextWindow < BaseWindow
     end
     lines.join("\n")
   end
+
+  # Find a clickable link command at the given window-relative coordinates.
+  # Adjusts for the tab bar offset, then scans the active tab's buffer
+  # for a color region with a :cmd at the given column.
+  #
+  # @param rel_y [Integer] row relative to window top (includes tab bar)
+  # @param rel_x [Integer] column relative to window left
+  # @return [String, nil] the link command string, or nil if no link at that position
+  def link_cmd_at(rel_y, rel_x)
+    content_y = rel_y - TAB_BAR_HEIGHT
+    return nil if content_y < 0
+
+    tab_buffer = @tabs[@active_tab] || []
+    tab_buffer_pos = @buffer_positions[@active_tab] || 0
+    buffer_idx = tab_buffer_pos + (content_height - 1 - content_y)
+    return nil if buffer_idx < 0 || buffer_idx >= tab_buffer.length
+
+    _text, colors = tab_buffer[buffer_idx]
+    return nil unless colors
+
+    colors.each do |h|
+      return h[:cmd] if h[:cmd] && rel_x >= h[:start] && rel_x < h[:end]
+    end
+    nil
+  end
 end
 
 BaseWindow.register_type('tabbed') do |height, width, top, left, element, wm|

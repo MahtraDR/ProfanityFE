@@ -16,6 +16,13 @@ module SelectionManager
   class << self
     attr_reader :active_window, :start_y, :start_x, :end_y, :end_x, :selecting
 
+    # Return the starting [y, x] coordinates as a pair, or nil if no selection.
+    #
+    # @return [Array<Integer>, nil] [y, x] pair or nil
+    def start_pos
+      @start_y && @start_x ? [@start_y, @start_x] : nil
+    end
+
     # Begin a new text selection at the given window coordinates.
     #
     # @param window [TextWindow] the window where selection starts

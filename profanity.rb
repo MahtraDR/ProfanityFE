@@ -786,6 +786,19 @@ begin
             if window
               rel_y = screen_y - window.begy
               rel_x = screen_x - window.begx
+              # Check for link click: press and release at same position
+              start_pos = SelectionManager.start_pos
+              if start_pos && start_pos == [rel_y, rel_x]
+                if (link_cmd = window.link_cmd_at(rel_y, rel_x))
+                  if (main = window_mgr.stream[MAIN_STREAM])
+                    add_prompt(main, shared_state.prompt_text, link_cmd)
+                    Curses.doupdate
+                  end
+                  server.puts link_cmd
+                  SelectionManager.clear_selection
+                  next
+                end
+              end
               SelectionManager.update_selection(rel_y, rel_x)
             end
             SelectionManager.end_selection
@@ -795,8 +808,17 @@ begin
           if window
             rel_y = screen_y - window.begy
             rel_x = screen_x - window.begx
-            SelectionManager.start_selection(window, rel_y, rel_x)
-            SelectionManager.end_selection
+            # Check for clickable link before starting selection
+            if (link_cmd = window.link_cmd_at(rel_y, rel_x))
+              if (main = window_mgr.stream[MAIN_STREAM])
+                add_prompt(main, shared_state.prompt_text, link_cmd)
+                Curses.doupdate
+              end
+              server.puts link_cmd
+            else
+              SelectionManager.start_selection(window, rel_y, rel_x)
+              SelectionManager.end_selection
+            end
           end
         elsif (bstate & Curses::REPORT_MOUSE_POSITION) != 0
           if SelectionManager.selecting

@@ -207,6 +207,26 @@ class TextWindow < BaseWindow
     noutrefresh
   end
 
+  # Find a clickable link command at the given window-relative coordinates.
+  # Scans the color regions of the buffer line at (rel_y, rel_x) for a
+  # :cmd entry whose span covers the column.
+  #
+  # @param rel_y [Integer] row relative to window top
+  # @param rel_x [Integer] column relative to window left
+  # @return [String, nil] the link command string, or nil if no link at that position
+  def link_cmd_at(rel_y, rel_x)
+    buffer_idx = @buffer_pos + (maxy - 1 - rel_y)
+    return nil if buffer_idx < 0 || buffer_idx >= @buffer.length
+
+    _text, colors = @buffer[buffer_idx]
+    return nil unless colors
+
+    colors.each do |h|
+      return h[:cmd] if h[:cmd] && rel_x >= h[:start] && rel_x < h[:end]
+    end
+    nil
+  end
+
   private
 
   # Draw a single line with reverse-video highlighting for the selected region.

@@ -307,6 +307,16 @@ class BaseWindow < Curses::Window
     ''
   end
 
+  # Find a clickable link command at the given window-relative coordinates.
+  # Subclasses override this with buffer-aware implementations.
+  #
+  # @param _rel_y [Integer] row relative to window top
+  # @param _rel_x [Integer] column relative to window left
+  # @return [String, nil] the link command string, or nil if no link at that position
+  def link_cmd_at(_rel_y, _rel_x)
+    nil
+  end
+
   # Render text at the current cursor position using indexed fg/bg color arrays.
   #
   # @param text [String] text to render

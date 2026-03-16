@@ -424,10 +424,21 @@ class GameTextProcessor
           # DragonRealms (<d cmd='...'>...</d>) clickable tags.
           # Controlled by .links dot-command or --links CLI flag.
           # Uses the 'links' preset color from template XML, falls back to blue.
+          # Captures the cmd (DR) or exist (GS) attribute for click dispatch.
           elsif xml =~ /^<[ad][\s>]/
             if @state.blue_links
               preset = PRESET['links'] || DEFAULT_LINK_COLOR
-              @open_link.push({ start: start_pos, fg: preset[0], bg: preset[1], priority: 2 })
+              link = { start: start_pos, fg: preset[0], bg: preset[1], priority: 2 }
+              # Extract the command for click dispatch:
+              #   DR: <d cmd='get #40872332'>  ->  "get #40872332"
+              #   GS: <a exist="12345" noun="sword">  ->  "_drag #12345"
+              if (cmd_match = xml.match(/cmd='(?<cmd>[^']+)'/))
+                link[:cmd] = cmd_match[:cmd]
+              elsif (exist_match = xml.match(/exist="(?<id>[^"]+)"/))
+                noun = xml.match(/noun="(?<n>[^"]+)"/)&.[](:n)
+                link[:cmd] = noun ? "look ##{exist_match[:id]}" : "_drag ##{exist_match[:id]}"
+              end
+              @open_link.push(link)
             end
           elsif xml =~ %r{^</[ad]>$}
             if (h = @open_link.pop)

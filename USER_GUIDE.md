@@ -1381,7 +1381,9 @@ This can also be bound to a key:
 
 ### .links
 
-Toggle in-game link highlighting on or off at runtime. See
+Toggle in-game link highlighting and clicking on or off at runtime.
+When enabled, clickable text (inventory items, exits, help links) is
+highlighted and can be clicked to execute the associated command. See
 [Link Display](#13-link-display) for details.
 
 ```
@@ -1657,10 +1659,16 @@ is the replacement string (defaults to empty string if omitted).
 
 ## 13. Link Display
 
-The `--links` flag enables colored highlighting of in-game `<a>` link tags
-(e.g., room exits, clickable objects). When enabled, link text is rendered
-using the `links` preset color. All built-in templates include a `links`
-preset by default.
+The `--links` flag enables colored highlighting and clicking of in-game link
+tags. Both GemStone (`<a>` tags) and DragonRealms (`<d cmd='...'>` tags) are
+supported. When enabled, link text is rendered using the `links` preset color
+(falls back to blue `5555ff` if no preset is defined). All built-in templates
+include a `links` preset by default.
+
+**Clickable links:** When `.links` is enabled, clicking on highlighted link
+text sends the associated command to the game server. In DragonRealms, this
+executes the `cmd` attribute (e.g., `get #40872332`). The command is echoed
+to the main window as if you had typed it.
 
 To customize the link color, override the `links` preset in your settings XML:
 
