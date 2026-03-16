@@ -787,6 +787,8 @@ begin
       screen_x = mouse.x
       bstate = mouse.bstate
 
+      ProfanityLog.write('Mouse', "bstate=#{bstate} at (#{screen_y},#{screen_x})")
+
       if (bstate & Curses::BUTTON1_PRESSED) != 0
         # Clear any previous highlight and begin tracking a new selection
         SelectionManager.clear_selection
