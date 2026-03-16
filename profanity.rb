@@ -788,6 +788,8 @@ begin
       bstate = mouse.bstate
 
       if (bstate & Curses::BUTTON1_PRESSED) != 0
+        # Clear any previous highlight and begin tracking a new selection
+        SelectionManager.clear_selection
         window = BaseWindow.find_window_at(screen_y, screen_x)
         if window
           rel_y = screen_y - window.begy
@@ -800,8 +802,8 @@ begin
           if window
             rel_y = screen_y - window.begy
             rel_x = screen_x - window.begx
-            # Check for link click: same row and short drag (within 3 columns)
             start_pos = SelectionManager.start_pos
+            # Single click (no drag): check for link, skip selection
             if start_pos && start_pos[0] == rel_y && (start_pos[1] - rel_x).abs <= 3
               if (link_cmd = window.link_cmd_at(rel_y, rel_x))
                 if (main = window_mgr.stream[MAIN_STREAM])
@@ -809,29 +811,30 @@ begin
                   Curses.doupdate
                 end
                 server.puts link_cmd
-                SelectionManager.clear_selection
-                next
               end
+              SelectionManager.clear_selection
+            else
+              # Actual drag: finalize selection and copy to clipboard
+              SelectionManager.update_selection(rel_y, rel_x)
+              SelectionManager.end_selection
             end
-            SelectionManager.update_selection(rel_y, rel_x)
+          else
+            SelectionManager.clear_selection
           end
-          SelectionManager.end_selection
         end
       elsif defined?(Curses::BUTTON1_CLICKED) && (bstate & Curses::BUTTON1_CLICKED) != 0
+        # Single click: check for link only (no selection on click)
+        SelectionManager.clear_selection
         window = BaseWindow.find_window_at(screen_y, screen_x)
         if window
           rel_y = screen_y - window.begy
           rel_x = screen_x - window.begx
-          # Check for clickable link before starting selection
           if (link_cmd = window.link_cmd_at(rel_y, rel_x))
             if (main = window_mgr.stream[MAIN_STREAM])
               add_prompt(main, shared_state.prompt_text, link_cmd)
               Curses.doupdate
             end
             server.puts link_cmd
-          else
-            SelectionManager.start_selection(window, rel_y, rel_x)
-            SelectionManager.end_selection
           end
         end
       end
