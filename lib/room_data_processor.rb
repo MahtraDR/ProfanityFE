@@ -37,25 +37,37 @@ module RoomDataProcessor
   #   should not route it to the main window)
   # @api private
   def process_room_data(text, line_colors)
-    return false unless @wm.room['room'] && !text.empty?
+    return false if text.empty?
 
     room_data_captured = false
 
+    # Handle room capture mode (roomName/roomDesc styled text).
+    # Always update the terminal title from the roomName text since it
+    # includes the room number in DR (e.g., "[Room] (230008)").
     case @room_capture_mode
     when :title
-      # Capture room title (RoomWindow will add brackets during render)
-      # Format input: [Room Name] (Room ID) -> output: Room Name] (Room ID)
-      # Remove leading [ and trailing ] before room ID
-      @room_pending_title = text.sub(/^\[/, '').sub(/\]\s*\(/, ' (').strip
-      @room_pending_title_colors = line_colors.dup
+      room_title = parse_room_subtitle(text)
+      unless room_title.empty?
+        @state.room_title = room_title
+        @state.update_terminal_title
+      end
+      if @wm.room['room']
+        # Strip brackets for RoomWindow (it re-adds them during render)
+        @room_pending_title = text.sub(/^\[/, '').sub(/\]\s*\(/, ' (').strip
+        @room_pending_title_colors = line_colors.dup
+      end
       @room_capture_mode = nil
       room_data_captured = true
     when :desc
-      @room_pending_desc = text.strip
-      @room_pending_desc_colors = line_colors.dup
+      if @wm.room['room']
+        @room_pending_desc = text.strip
+        @room_pending_desc_colors = line_colors.dup
+      end
       @room_capture_mode = nil
       room_data_captured = true
     end
+
+    return room_data_captured unless @wm.room['room']
 
     # Detect "You also see" for objects (may have leading whitespace)
     if text =~ /^\s*You also see\b/

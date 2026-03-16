@@ -380,8 +380,10 @@ class GameTextProcessor
                 @open_style[:fg] = PRESET[style_id][0]
                 @open_style[:bg] = PRESET[style_id][1]
               end
-              # Set room capture mode for roomName style
-              @room_capture_mode = :title if style_id == 'roomName' && @wm.room['room']
+              # Set room capture mode for roomName style.
+              # Captures the inline title text (e.g., "[Room] (230008)") for
+              # both the RoomWindow and the terminal title.
+              @room_capture_mode = :title if style_id == 'roomName'
             end
           elsif @combat_next_line && !line.empty?
             # line = "<pushStream id=\"combat\" />#{line.chomp}"
