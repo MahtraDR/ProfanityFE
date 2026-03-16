@@ -530,6 +530,32 @@ value.
         fg='ffffff,ffffff,ffffff,ff0000' bg='0000aa,000055,000000,440000'/>
 ```
 
+**Arbitrary Progress Bars (`arbProgress`):**
+
+Scripts can create custom progress bars by sending `arbProgress` XML to the
+game stream. These bars reuse existing progress windows by matching the `id`
+attribute. Labels and colors can be overridden dynamically per update.
+
+```xml
+<arbProgress id='spellactive' max='250' current='160' label='WaterWalking' colors='1589FF,000000'</arbProgress>
+```
+
+| Attribute | Required | Description |
+|-----------|----------|-------------|
+| `id` | yes | Matches a `value` on a `progress` window |
+| `max` | yes | Maximum value for the bar |
+| `current` | yes | Current value (clamped to max) |
+| `label` | no | Override the bar's label text |
+| `colors` | no | Override colors as `bg,fg` (hex, comma-separated) |
+
+To use an arbitrary progress bar, define a progress window with a matching
+`value` in your template:
+
+```xml
+<window class='progress' top='5' left='0' height='1' width='20'
+        value='spellactive' label='Spell' fg='1589ff' bg='000000'/>
+```
+
 ---
 
 #### 3.5 Countdown Window (`class='countdown'`)
@@ -1631,11 +1657,12 @@ is the replacement string (defaults to empty string if omitted).
 
 ## 13. Link Display
 
-The `--links` flag enables colored highlighting of in-game links (URLs and
-clickable elements). When enabled, link text is rendered using the `links`
-preset color.
+The `--links` flag enables colored highlighting of in-game `<a>` link tags
+(e.g., room exits, clickable objects). When enabled, link text is rendered
+using the `links` preset color. All built-in templates include a `links`
+preset by default.
 
-To use link highlighting, define a `links` preset in your settings XML:
+To customize the link color, override the `links` preset in your settings XML:
 
 ```xml
 <preset id='links' fg='5f87ff'/>

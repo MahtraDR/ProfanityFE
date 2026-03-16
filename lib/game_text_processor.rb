@@ -459,12 +459,12 @@ class GameTextProcessor
             @wm.stream[MAIN_STREAM].add_string ' *'.dup
             @wm.stream[MAIN_STREAM].add_string " * LaunchURL: #{url}"
             @wm.stream[MAIN_STREAM].add_string ' *'.dup
+          # In-game link highlighting (<a>...</a> tags).
+          # Controlled by .links dot-command or --links CLI flag.
+          # Uses the 'links' preset color defined in the template XML.
           elsif xml =~ /^<a/
-            if @state.blue_links
-              h = { start: start_pos, priority: 2 }
-              h[:fg] = PRESET['links'][0] if PRESET['links']
-              h[:bg] = PRESET['links'][1] if PRESET['links']
-              @open_link.push(h)
+            if @state.blue_links && (preset = PRESET['links'])
+              @open_link.push({ start: start_pos, fg: preset[0], bg: preset[1], priority: 2 })
             end
           elsif xml == '</a>'
             if (h = @open_link.pop)
