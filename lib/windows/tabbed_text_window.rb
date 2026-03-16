@@ -213,7 +213,11 @@ class TabbedTextWindow < BaseWindow
 
     wrap_text(string, content_width, string_colors, indent: @indent_word_wrap) do |line, line_colors|
       tab_buffer.unshift([line, line_colors])
-      tab_buffer.pop if tab_buffer.length > @max_buffer_size
+      if tab_buffer.length > @max_buffer_size
+        tab_buffer.pop
+        max_pos = tab_buffer.length - content_height
+        @buffer_positions[tab_name] = max_pos if max_pos >= 0 && @buffer_positions[tab_name] > max_pos
+      end
 
       if tab_name == @active_tab
         if tab_buffer_pos == 0
