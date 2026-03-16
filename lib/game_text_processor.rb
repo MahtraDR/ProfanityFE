@@ -417,14 +417,20 @@ class GameTextProcessor
             @wm.stream['percWindow'].clear_spells if @wm.stream['percWindow']
           elsif xml =~ /^<progressBar/
             nil
-          elsif xml =~ /<d cmd='get/
-            # contents = xml.scan(/'([^']*)'/)[0]
-            contents = xml[/'([^']*)'/, 1]
-            # File.open('profanitya.log', 'a') do |f|
-            #   f.puts("TestXML: #{contents}")
-            # end
-            @wm.stream[MAIN_STREAM].add_string "TestXML: #{contents}"
-          elsif xml =~ %r{^<(?:dialogdata|a|/a|d|/d|/?component|label|skin|output)}
+          # In-game link highlighting for both GemStone (<a>...</a>) and
+          # DragonRealms (<d cmd='...'>...</d>) clickable tags.
+          # Controlled by .links dot-command or --links CLI flag.
+          # Uses the 'links' preset color defined in the template XML.
+          elsif xml =~ /^<[ad][\s>]/
+            if @state.blue_links && (preset = PRESET['links'])
+              @open_link.push({ start: start_pos, fg: preset[0], bg: preset[1], priority: 2 })
+            end
+          elsif xml =~ %r{^</[ad]>$}
+            if (h = @open_link.pop)
+              h[:end] = start_pos
+              @line_colors.push(h) if h[:fg] or h[:bg]
+            end
+          elsif xml =~ %r{^<(?:dialogdata|/?component|label|skin|output)}
             nil
           elsif (ind_match = xml.match(/^<indicator id=(?<q1>'|")Icon(?<icon>[A-Z]+)\k<q1> visible=(?<q2>'|")(?<vis>[yn])\k<q2>/))
             if (window = @wm.countdown[ind_match[:icon].downcase])
@@ -459,18 +465,6 @@ class GameTextProcessor
             @wm.stream[MAIN_STREAM].add_string ' *'.dup
             @wm.stream[MAIN_STREAM].add_string " * LaunchURL: #{url}"
             @wm.stream[MAIN_STREAM].add_string ' *'.dup
-          # In-game link highlighting (<a>...</a> tags).
-          # Controlled by .links dot-command or --links CLI flag.
-          # Uses the 'links' preset color defined in the template XML.
-          elsif xml =~ /^<a/
-            if @state.blue_links && (preset = PRESET['links'])
-              @open_link.push({ start: start_pos, fg: preset[0], bg: preset[1], priority: 2 })
-            end
-          elsif xml == '</a>'
-            if (h = @open_link.pop)
-              h[:end] = start_pos
-              @line_colors.push(h) if h[:fg] or h[:bg]
-            end
           end
         end
         handle_game_text(line)
