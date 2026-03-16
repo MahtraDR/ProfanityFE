@@ -21,11 +21,11 @@ class MouseScroll
   MIN_EVENT_COUNT = 20
 
   # Bitmask for mouse events when .links is active.
-  # Includes BUTTON1 press/release/click for link detection, and
-  # REPORT_MOUSE_POSITION for drag-to-select text within windows.
+  # BUTTON1 press/release/click for link detection and drag-to-select.
+  # Does NOT include REPORT_MOUSE_POSITION (causes display corruption).
+  # Drag highlight appears on release instead of during drag.
   CLICK_EVENTS = Curses::BUTTON1_PRESSED | Curses::BUTTON1_RELEASED |
-                 (defined?(Curses::BUTTON1_CLICKED) ? Curses::BUTTON1_CLICKED : 0) |
-                 Curses::REPORT_MOUSE_POSITION
+                 (defined?(Curses::BUTTON1_CLICKED) ? Curses::BUTTON1_CLICKED : 0)
 
   # @param key_action [Hash<String, Proc>] the key action registry
   # @param display_fn [Proc] callback to display messages: display_fn.call(text)
