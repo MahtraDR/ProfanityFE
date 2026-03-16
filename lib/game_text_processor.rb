@@ -406,11 +406,10 @@ class GameTextProcessor
             else
               @current_stream = new_stream
               # Extract room title from subtitle attribute.
-              # DR: <component id="room" subtitle=" - Room Name">
-              # GS: also uses this tag in some cases
+              # GS: <component id="room" subtitle=" - [Town Square, Center]">
+              # DR: <component id="room" subtitle=" - [Bosque Deriel, Shacks] (230008)">
               if new_stream == 'room' && (sub_match = xml.match(/subtitle=(?<q>"|')(?<sub>.*?)\k<q>/))
-                subtitle = sub_match[:sub]
-                title = subtitle.sub(/^\s*-\s*/, '').sub(/^\[/, '').sub(/\]$/, '')
+                title = parse_room_subtitle(sub_match[:sub])
                 unless title.empty?
                   @state.room_title = title
                   @state.update_terminal_title
@@ -456,8 +455,8 @@ class GameTextProcessor
             end
           # GemStone room title: <streamWindow id='room' subtitle=" - [Room Name]"/>
           # Updates terminal title and room indicator window.
-          elsif (sw_match = xml.match(/^<streamWindow id='room'.*?subtitle=(?<q>"|')\s*-\s*(?<sub>.*?)\k<q>/))
-            room = sw_match[:sub].sub(/^\[/, '').sub(/\]$/, '').strip
+          elsif (sw_match = xml.match(/^<streamWindow id='room'.*?subtitle=(?<q>"|')(?<sub>.*?)\k<q>/))
+            room = parse_room_subtitle(sw_match[:sub])
             unless room.empty?
               @state.room_title = room
               @state.update_terminal_title
@@ -547,6 +546,23 @@ class GameTextProcessor
     CursesRenderer.render do
       @cmd_buffer.window&.noutrefresh
     end
+  end
+
+  # Parse a room subtitle attribute into a clean room title string.
+  #
+  # Handles both GemStone and DragonRealms subtitle formats:
+  # - GS: +" - [Town Square, Center]"+ → +"Town Square, Center"+
+  # - DR: +" - [Bosque Deriel, Shacks] (230008)"+ → +"Bosque Deriel, Shacks (230008)"+
+  #
+  # @param subtitle [String] raw subtitle attribute value
+  # @return [String] cleaned room title (may be empty)
+  # @api private
+  def parse_room_subtitle(subtitle)
+    # Strip leading " - " prefix
+    text = subtitle.sub(/^\s*-\s*/, '')
+    # DR format: [Room Title] (RoomNum) — strip brackets, keep room number
+    # GS format: [Room Title]          — strip brackets
+    text.sub(/^\[(.+?)\]/, '\1').strip
   end
 
   # Evaluate a layout dimension string to an integer, substituting

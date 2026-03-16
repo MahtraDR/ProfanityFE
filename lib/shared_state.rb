@@ -125,10 +125,9 @@ class SharedState
   # stripping the trailing ">" from the prompt. No-op when the title hasn't
   # changed since the last call (dedup, matching EO behavior).
   #
-  # Sets both the xterm/iTerm OSC 0 title, the screen/tmux window name,
-  # and +Process.setproctitle+.  All terminal escape sequences are
-  # serialized via {CursesRenderer.synchronize} to prevent interleaving
-  # with curses output.
+  # Writes escape sequences directly to +/dev/tty+, bypassing curses'
+  # stdout buffer to avoid display corruption. Only emits the screen/tmux
+  # +\\ek+ escape when +$TERM+ indicates a screen/tmux session.
   #
   # @return [void]
   def update_terminal_title
@@ -143,11 +142,22 @@ class SharedState
 
     @last_title = title
     Process.setproctitle(title)
-    CursesRenderer.synchronize do
-      $stdout.print "\033]0;#{title}\007"  # xterm/iTerm/etc.
-      $stdout.print "\ek#{title}\e\\"      # screen/tmux
-      $stdout.flush
+    # Write escape sequences directly to the controlling terminal,
+    # bypassing curses' stdout buffer.  Writing to $stdout while curses
+    # is active can corrupt the display (especially on MobaXterm).
+    # Only emit the screen/tmux escape (\ek) when $TERM indicates it.
+    tty = @tty ||= begin
+      File.open('/dev/tty', 'w')
+    rescue Errno::ENOENT, Errno::EACCES
+      nil
     end
+    return unless tty
+
+    tty.print "\033]0;#{title}\007"
+    if ENV['TERM']&.match?(/^screen|^tmux/)
+      tty.print "\ek#{title}\e\\"
+    end
+    tty.flush
   rescue StandardError
     # ignore title update failures (e.g. no controlling terminal)
   end
