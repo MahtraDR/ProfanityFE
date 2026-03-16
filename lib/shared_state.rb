@@ -20,6 +20,7 @@ class SharedState
     @need_prompt = false
     @prompt_text = '>'
     @skip_server_time_offset = false
+    @blue_links = false
   end
 
   # @return [Boolean] whether a prompt display is pending
@@ -53,6 +54,17 @@ class SharedState
   # @return [void]
   def skip_server_time_offset=(val)
     @mutex.synchronize { @skip_server_time_offset = val }
+  end
+
+  # @return [Boolean] whether in-game link highlighting is enabled
+  def blue_links
+    @mutex.synchronize { @blue_links }
+  end
+
+  # @param val [Boolean] enable or disable link highlighting
+  # @return [void]
+  def blue_links=(val)
+    @mutex.synchronize { @blue_links = val }
   end
 
   # Atomically check whether the prompt text changed and update state.

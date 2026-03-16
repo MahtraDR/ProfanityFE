@@ -284,7 +284,6 @@ ColorManager.configure(
 # Declared here so closures (execute_command, etc.) can capture it.
 # Assigned later after layout is loaded.
 server = nil
-blue_links = cli_links
 
 xml_escape_list = {
   '&lt;'   => '<',
@@ -295,6 +294,7 @@ xml_escape_list = {
 }
 
 shared_state = SharedState.new
+shared_state.blue_links = cli_links
 cmd_buffer = CommandBuffer.new
 window_mgr = WindowManager.new
 
@@ -475,9 +475,9 @@ execute_command = proc { |cmd|
       Curses.doupdate
     end
   elsif cmd =~ /^\.links/i
-    blue_links = !blue_links
+    shared_state.blue_links = !shared_state.blue_links
     if (window = window_mgr.stream[MAIN_STREAM])
-      msg = "* Links display: #{blue_links ? 'ON' : 'OFF'}"
+      msg = "* Links display: #{shared_state.blue_links ? 'ON' : 'OFF'}"
       window.add_string(msg, feedback_colors.call(msg))
       Curses.doupdate
     end

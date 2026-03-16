@@ -68,6 +68,7 @@
        PRESETS — Colors for game-defined text categories
        ================================================================ -->
   <preset id='whisper'     fg='66ff66'/>
+  <preset id='links'       fg='5555ff'/>
   <preset id='speech'      fg='66ff66'/>
   <preset id='roomName'    fg='ffffff'/>
   <preset id='monsterbold' fg='d2bc2a'/>

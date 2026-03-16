@@ -53,6 +53,7 @@
          whisper, speech, roomName, monsterbold, thought, voln, percWindow
   -->
   <preset id='whisper'    fg='&cyan;'/>
+  <preset id='links'      fg='5555ff'/>
   <preset id='speech'     fg='&green;'/>
   <preset id='roomName'   fg='&green;'/>
   <preset id='monsterbold' fg='&yellow;'/>

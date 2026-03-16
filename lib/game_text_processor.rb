@@ -53,6 +53,7 @@ class GameTextProcessor
     @open_preset = []
     @open_style = nil
     @open_color = []
+    @open_link = []
 
     # Stream and display state
     @current_stream = nil
@@ -458,6 +459,18 @@ class GameTextProcessor
             @wm.stream[MAIN_STREAM].add_string ' *'.dup
             @wm.stream[MAIN_STREAM].add_string " * LaunchURL: #{url}"
             @wm.stream[MAIN_STREAM].add_string ' *'.dup
+          elsif xml =~ /^<a/
+            if @state.blue_links
+              h = { start: start_pos, priority: 2 }
+              h[:fg] = PRESET['links'][0] if PRESET['links']
+              h[:bg] = PRESET['links'][1] if PRESET['links']
+              @open_link.push(h)
+            end
+          elsif xml == '</a>'
+            if (h = @open_link.pop)
+              h[:end] = start_pos
+              @line_colors.push(h) if h[:fg] or h[:bg]
+            end
           end
         end
         handle_game_text(line)
@@ -787,5 +800,6 @@ class GameTextProcessor
     @open_monsterbold.clear
     @open_preset.clear
     @open_color.clear
+    @open_link.clear
   end
 end
