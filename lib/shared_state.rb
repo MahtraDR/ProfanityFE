@@ -125,12 +125,11 @@ class SharedState
   # stripping the trailing ">" from the prompt. No-op when the title hasn't
   # changed since the last call (dedup, matching EO behavior).
   #
-  # Writes the OSC 0 escape via +$stdout+ (same fd as curses) inside
-  # {CursesRenderer.synchronize} so that the escape bytes cannot be
-  # interleaved with curses output.  The screen/tmux +\\ek+ escape is
-  # only emitted when +$TERM+ indicates a screen/tmux session, since
-  # terminals that don't recognize it (e.g., MobaXterm) render it as
-  # visible text.
+  # Sets the terminal tab/window title via an OSC 0 escape sequence
+  # written by a forked +printf+ subprocess (matching EO's approach).
+  # This avoids interleaving with curses' stdout buffer.  The
+  # screen/tmux +\\ek+ escape is only emitted when +$TERM+ indicates
+  # a screen/tmux session.
   #
   # @return [void]
   def update_terminal_title
@@ -145,17 +144,15 @@ class SharedState
 
     @last_title = title
     Process.setproctitle(title)
-    # Write via $stdout (same fd as curses) with the curses monitor held
-    # so bytes cannot interleave with curses output.  Using a separate fd
-    # (/dev/tty) causes kernel-level interleaving that splits the escape
-    # sequence, rendering partial bytes as visible text on the screen.
-    CursesRenderer.synchronize do
-      $stdout.print "\033]0;#{title}\007"
-      if ENV['TERM']&.match?(/^screen|^tmux/)
-        $stdout.print "\ek#{title}\e\\"
-      end
-      $stdout.flush
-    end
+    # Set the terminal tab/window title via OSC 0 escape sequence.
+    # Uses system() to fork a subprocess (matching EO's approach) so the
+    # escape bytes are written independently from curses' stdout buffer —
+    # no interleaving possible.  Array form of system() avoids shell
+    # injection and bypasses the shell entirely.
+    system('printf', '\033]0;%s\007', title)
+    return unless ENV['TERM']&.match?(/^screen|^tmux/)
+
+    system('printf', '\ek%s\e\\', title)
   rescue StandardError
     # ignore title update failures (e.g. no controlling terminal)
   end
