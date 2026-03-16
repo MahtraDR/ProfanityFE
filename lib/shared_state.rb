@@ -150,18 +150,20 @@ class SharedState
 
     return if title == @last_title
 
-    @title_dirty = false
-    @last_title = title
     Process.setproctitle(title)
     # Set the terminal tab/window title via OSC 0 escape sequence.
     # Uses system() to fork a subprocess (matching EO's approach) so the
     # escape bytes are written independently from curses' stdout buffer —
     # no interleaving possible.  Array form of system() avoids shell
     # injection and bypasses the shell entirely.
+    # Clear dirty/dedup state AFTER the system() calls so that a fork
+    # failure leaves @title_dirty true for retry on the next prompt.
     system('printf', '\033]0;%s\007', title)
     if ENV['TERM']&.match?(/^screen|^tmux/)
       system('printf', '\ek%s\e\\', @char_name)
     end
+    @title_dirty = false
+    @last_title = title
   rescue StandardError
     # ignore title update failures (e.g. no controlling terminal)
   end
