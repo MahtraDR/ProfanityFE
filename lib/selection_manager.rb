@@ -107,6 +107,8 @@ module SelectionManager
       if clipboard_cmd
         IO.popen(clipboard_cmd, 'w') { |io| io.write(text) }
         ProfanityLog.write('Clipboard', "Copied #{text.length} chars via #{clipboard_cmd}")
+      else
+        ProfanityLog.write('Clipboard', "No clipboard command available (no DISPLAY); using OSC 52 + file")
       end
 
       # OSC 52 for remote/SSH sessions (write to tty to avoid curses interference)
