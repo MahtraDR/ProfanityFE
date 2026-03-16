@@ -100,15 +100,23 @@ class MouseScroll
   def enable_click_events
     @click_events_enabled = true
     apply_mouse_mask
+    # Enable basic mouse button tracking (normal mode, no motion)
+    print "\e[?1000h"
+    $stdout.flush
   end
 
   # Disable mouse click events, restoring native terminal selection.
-  # Called when .links is toggled off.
+  # Called when .links is toggled off. Sends explicit terminal escape
+  # sequences to ensure mouse tracking is fully disabled.
   #
   # @return [void]
   def disable_click_events
     @click_events_enabled = false
     apply_mouse_mask
+    # Explicitly disable all terminal mouse tracking modes
+    # Some terminals don't respond to Curses.mousemask(0) alone
+    print "\e[?1000l\e[?1002l\e[?1003l\e[?1006l"
+    $stdout.flush
   end
 
   private
