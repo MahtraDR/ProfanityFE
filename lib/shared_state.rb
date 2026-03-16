@@ -31,6 +31,7 @@ class SharedState
     @char_name = nil
     @no_status = false
     @last_title = nil
+    @title_dirty = false
   end
 
   # @return [Boolean] whether a prompt display is pending
@@ -52,7 +53,10 @@ class SharedState
   # @param val [String] new prompt string
   # @return [void]
   def prompt_text=(val)
-    @mutex.synchronize { @prompt_text = val }
+    @mutex.synchronize do
+      @title_dirty = true if @prompt_text != val
+      @prompt_text = val
+    end
   end
 
   # @return [String] current room title (for terminal title display)
@@ -63,7 +67,10 @@ class SharedState
   # @param val [String] new room title
   # @return [void]
   def room_title=(val)
-    @mutex.synchronize { @room_title = val }
+    @mutex.synchronize do
+      @title_dirty = true if @room_title != val
+      @room_title = val
+    end
   end
 
   # @return [Boolean] whether to skip the next server time offset calculation
@@ -134,6 +141,7 @@ class SharedState
   # @return [void]
   def update_terminal_title
     return if @char_name.nil? || @no_status
+    return unless @title_dirty
 
     prompt = @mutex.synchronize { @prompt_text.to_s.delete('>').strip }
     room   = @mutex.synchronize { @room_title.to_s.strip }
@@ -142,6 +150,7 @@ class SharedState
 
     return if title == @last_title
 
+    @title_dirty = false
     @last_title = title
     Process.setproctitle(title)
     # Set the terminal tab/window title via OSC 0 escape sequence.
