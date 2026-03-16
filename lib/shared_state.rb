@@ -160,7 +160,7 @@ class SharedState
     # injection and bypasses the shell entirely.
     system('printf', '\033]0;%s\007', title)
     if ENV['TERM']&.match?(/^screen|^tmux/)
-      system('printf', '\ek%s\e\\', title)
+      system('printf', '\ek%s\e\\', @char_name)
     end
   rescue StandardError
     # ignore title update failures (e.g. no controlling terminal)
