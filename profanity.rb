@@ -496,9 +496,9 @@ execute_command = proc { |cmd|
     end
     if (window = window_mgr.stream[MAIN_STREAM])
       msg = if shared_state.blue_links
-              '* Links: ON (clickable links enabled, text selection disabled)'
+              '* Links: ON (clickable links + drag-to-select)'
             else
-              '* Links: OFF (text selection enabled)'
+              '* Links: OFF (native terminal selection)'
             end
       window.add_string(msg, feedback_colors.call(msg))
       Curses.doupdate
@@ -787,8 +787,6 @@ begin
       screen_x = mouse.x
       bstate = mouse.bstate
 
-      ProfanityLog.write('Mouse', "bstate=#{bstate} at (#{screen_y},#{screen_x})")
-
       if (bstate & Curses::BUTTON1_PRESSED) != 0
         window = BaseWindow.find_window_at(screen_y, screen_x)
         if window
@@ -834,6 +832,17 @@ begin
           else
             SelectionManager.start_selection(window, rel_y, rel_x)
             SelectionManager.end_selection
+          end
+        end
+      elsif (bstate & Curses::REPORT_MOUSE_POSITION) != 0
+        # Drag tracking: update selection, clamped to the active window bounds
+        if SelectionManager.selecting
+          window = SelectionManager.active_window
+          if window
+            rel_y = [[screen_y - window.begy, 0].max, window.maxy - 1].min
+            rel_x = [[screen_x - window.begx, 0].max, window.maxx - 1].min
+            SelectionManager.update_selection(rel_y, rel_x)
+            Curses.doupdate
           end
         end
       end

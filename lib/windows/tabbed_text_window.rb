@@ -406,6 +406,47 @@ class TabbedTextWindow < BaseWindow
     lines.join("\n")
   end
 
+  # Redraw the active tab's content with reverse-video selection highlighting.
+  # Coordinates are window-relative (includes tab bar row).
+  #
+  # @return [void]
+  def redraw_with_highlight
+    return unless @selection_start && @selection_end && @active_tab
+
+    start_y, start_x = @selection_start
+    end_y, end_x = @selection_end
+
+    # Adjust for tab bar and normalize
+    start_y -= TAB_BAR_HEIGHT
+    end_y -= TAB_BAR_HEIGHT
+    if start_y > end_y || (start_y == end_y && start_x > end_x)
+      start_y, end_y = end_y, start_y
+      start_x, end_x = end_x, start_x
+    end
+
+    tab_buffer = @tabs[@active_tab] || []
+    tab_buffer_pos = @buffer_positions[@active_tab] || 0
+    visible_lines = [tab_buffer.length - tab_buffer_pos, content_height].min
+
+    (0...content_height).each do |i|
+      y = TAB_BAR_HEIGHT + i
+      setpos(y, 0)
+      clrtoeol
+
+      buffer_idx = tab_buffer_pos + (visible_lines - 1 - i)
+      next if buffer_idx >= tab_buffer.length || buffer_idx < 0
+
+      line_text, line_colors = tab_buffer[buffer_idx]
+
+      if i >= start_y && i <= end_y
+        draw_line_with_selection(i, line_text, line_colors || [], start_y, start_x, end_y, end_x)
+      else
+        add_line(line_text, line_colors || [])
+      end
+    end
+    noutrefresh
+  end
+
   # Find a clickable link command at the given window-relative coordinates.
   # Adjusts for the tab bar offset, then scans the active tab's buffer
   # for a color region with a :cmd at the given column.

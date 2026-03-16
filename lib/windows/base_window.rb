@@ -317,6 +317,47 @@ class BaseWindow < Curses::Window
     nil
   end
 
+  # Draw a single line with reverse-video highlighting for the selected region.
+  # Shared by TextWindow and TabbedTextWindow for selection rendering.
+  #
+  # @param y [Integer] the window row being drawn
+  # @param line_text [String] full text of the line
+  # @param line_colors [Array<Hash>] color regions for the line
+  # @param start_y [Integer] selection start row
+  # @param start_x [Integer] selection start column
+  # @param end_y [Integer] selection end row
+  # @param end_x [Integer] selection end column
+  # @return [void]
+  protected def draw_line_with_selection(y, line_text, line_colors, start_y, start_x, end_y, end_x)
+    return if line_text.nil?
+
+    sel_start = y == start_y ? start_x : 0
+    sel_end = y == end_y ? end_x : line_text.length
+
+    if sel_start > 0
+      pre_text = line_text[0...sel_start]
+      pre_colors = line_colors.map do |h|
+        { start: h[:start], end: [h[:end], sel_start].min, fg: h[:fg], bg: h[:bg], ul: h[:ul] }
+      end.select { |h| h[:end] > h[:start] }
+      add_line(pre_text, pre_colors)
+    end
+
+    if sel_end > sel_start
+      selected_text = line_text[sel_start...sel_end] || ''
+      attron(Curses::A_REVERSE) { addstr selected_text }
+    end
+
+    return unless sel_end < line_text.length
+
+    post_text = line_text[sel_end..-1]
+    post_colors = line_colors.map do |h|
+      new_start = [h[:start] - sel_end, 0].max
+      new_end = h[:end] - sel_end
+      { start: new_start, end: new_end, fg: h[:fg], bg: h[:bg], ul: h[:ul] }
+    end.select { |h| h[:end] > 0 && h[:end] > h[:start] }
+    add_line(post_text, post_colors)
+  end
+
   # Render text at the current cursor position using indexed fg/bg color arrays.
   #
   # @param text [String] text to render

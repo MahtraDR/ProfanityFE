@@ -20,12 +20,12 @@ Ported from elanthia-online/ProfanityFE.
 class MouseScroll
   MIN_EVENT_COUNT = 20
 
-  # Bitmask for mouse click events (BUTTON1 press/release/click).
-  # Only included when .links is active for clickable link support.
-  # Does NOT include REPORT_MOUSE_POSITION — that floods the terminal
-  # with escape sequences for every mouse movement.
+  # Bitmask for mouse events when .links is active.
+  # Includes BUTTON1 press/release/click for link detection, and
+  # REPORT_MOUSE_POSITION for drag-to-select text within windows.
   CLICK_EVENTS = Curses::BUTTON1_PRESSED | Curses::BUTTON1_RELEASED |
-                 (defined?(Curses::BUTTON1_CLICKED) ? Curses::BUTTON1_CLICKED : 0)
+                 (defined?(Curses::BUTTON1_CLICKED) ? Curses::BUTTON1_CLICKED : 0) |
+                 Curses::REPORT_MOUSE_POSITION
 
   # @param key_action [Hash<String, Proc>] the key action registry
   # @param display_fn [Proc] callback to display messages: display_fn.call(text)

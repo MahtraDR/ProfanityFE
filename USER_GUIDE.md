@@ -1671,10 +1671,12 @@ text sends the associated command to the game server. In DragonRealms, this
 executes the `cmd` attribute (e.g., `get #40872332`). The command is echoed
 to the main window as if you had typed it.
 
-**Text selection tradeoff:** When `.links` is on, mouse clicks are captured
-by the application for link detection. This disables the terminal's native
-text selection. Toggle `.links` off to restore text selection. The two modes
-are mutually exclusive due to how terminal mouse capture works.
+**Text selection:** When `.links` is on, you can drag to select text within
+any window. The selection is clamped to the window boundary — dragging in the
+main window won't bleed into adjacent windows. Selected text is copied via
+OSC 52 (if your terminal supports it) and saved to `/tmp/profanity_selection.txt`.
+Native terminal selection is unavailable while `.links` is on; toggle it off
+if you prefer your terminal's built-in selection.
 
 To customize the link color, override the `links` preset in your settings XML:
 

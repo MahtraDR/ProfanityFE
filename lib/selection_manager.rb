@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
 # selection_manager.rb: Mouse text selection and clipboard operations for ProfanityFE.
-# Currently dormant — mouse tracking is disabled (breaks terminal copy/paste).
 
-# Manages mouse text selection state and clipboard operations
-# GNU Screen compatible - uses external clipboard commands (pbcopy/xclip/wl-copy)
+# Manages mouse text selection state and clipboard operations.
+# Active when .links is enabled (which captures mouse events).
+# Selection is per-window: drag coordinates are clamped to the
+# active window's bounds so selections never bleed across windows.
+# Copies selected text via OSC 52 and /tmp/profanity_selection.txt.
 module SelectionManager
   @active_window = nil
   @start_y = nil
