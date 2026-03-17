@@ -62,6 +62,7 @@ ProfanityFE connects to `127.0.0.1` on the specified port.
 | `--no-status` | off | Disable process title updates |
 | `--links` | off | Enable in-game link highlighting |
 | `--speech-ts` | off | Add timestamps to speech, familiar, and thought windows |
+| `--room-window-only` | off | Do not echo room data to the story window (show only in room window) |
 | `--remote-url=<url>` | off | Display LaunchURLs as text (for SSH/remote sessions) |
 | `--default-color-id=<id>` | `7` | Curses color ID for the default foreground color |
 | `--default-background-color-id=<id>` | `0` | Curses color ID for the default background color |
@@ -625,6 +626,9 @@ A dedicated window for room information: title, description, objects (with
 creature highlighting), players, exits, room number, and string procs. The
 room window assembles data from the game's room-related XML streams and
 renders a complete room view.
+
+By default, room data is echoed to both the room window and the story window.
+Pass `--room-window-only` to suppress room data from the story window.
 
 **Attributes:**
 
@@ -1626,6 +1630,8 @@ on text and tabbed windows.
    atmospherics) fall back to the `main` window with their preset color applied.
 4. Room-related streams (`room`, `room title`, `room desc`, `room objs`,
    `room players`, `room exits`) are routed to the room window if one exists.
+   By default, inline room text (title, description, objects, players, exits)
+   is also shown in the story window. Use `--room-window-only` to suppress it.
 
 ### Special Stream Processing
 
