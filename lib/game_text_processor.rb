@@ -359,8 +359,8 @@ class GameTextProcessor
           elsif (style_match = xml.match(/^<style id=(?<q>'|")(?<id>.*?)\k<q>/))
             style_id = style_match[:id]
             # Only extract text for room-related styles
-            if style_id.empty? && @room_capture_mode == :title
-              # Closing style tag while in title mode - extract the title
+            if style_id.empty? && (@room_capture_mode == :title || @room_capture_mode == :desc)
+              # Closing style tag while in title/desc mode - extract the text
               game_text = line.slice!(0, start_pos)
               handle_game_text(game_text)
             end
@@ -382,6 +382,7 @@ class GameTextProcessor
               # Captures the inline title text (e.g., "[Room] (230008)") for
               # both the RoomWindow and the terminal title.
               @room_capture_mode = :title if style_id == 'roomName'
+              @room_capture_mode = :desc if style_id == 'roomDesc' && @wm.room['room']
             end
           elsif @combat_next_line && !line.empty?
             # line = "<pushStream id=\"combat\" />#{line.chomp}"
@@ -395,7 +396,7 @@ class GameTextProcessor
             game_text = line.slice!(0, start_pos)
             handle_game_text(game_text)
             @combat_next_line = true
-          elsif (stream_match = xml.match(%r{<(?:pushStream|component) id=(?<q>"|')(?<id>.*?)\k<q>[^>]*/?>}))
+          elsif (stream_match = xml.match(%r{<(?:pushStream|component|compDef) id=(?<q>"|')(?<id>.*?)\k<q>[^>]*/?>}))
             new_stream = stream_match[:id]
             if (exp_match = new_stream.match(/^exp (?<skill>\w+\s?\w+?)/))
               @current_stream = 'exp'
@@ -418,7 +419,7 @@ class GameTextProcessor
             end
             game_text = line.slice!(0, start_pos)
             handle_game_text(game_text)
-          elsif xml =~ %r{^<popStream(?!/><pushStream)} or xml == '</component>'
+          elsif xml =~ %r{^<popStream(?!/><pushStream)} or xml == '</component>' or xml == '</compDef>'
             game_text = line.slice!(0, start_pos)
             handle_game_text(game_text)
             @wm.stream['exp'].delete_skill if @current_stream == 'exp' and @wm.stream['exp']
