@@ -2,6 +2,7 @@
 
 require_relative 'spell_abbreviations'
 require_relative 'games/dragonrealms'
+require_relative 'games/gemstone'
 require_relative 'room_data_processor'
 require_relative 'familiar_notifier'
 
@@ -721,9 +722,8 @@ class GameTextProcessor
 
         if (window = @wm.stream[@current_stream])
           if @current_stream == 'death'
-            # FIXME: has been vaporized!
-            # fixme: ~ off to a rough start
             if (death_match = text.match(Games::DragonRealms::DEATH_PATTERN))
+              # DR death: "Name" or "Name MF" (moonfire phoenix)
               name = death_match[:name]
               timestamp = Time.now.strftime('%H:%M')
               text = if text.match?(/A fiery phoenix soars into the heavens as/)
@@ -731,29 +731,35 @@ class GameTextProcessor
                      else
                        "#{timestamp} #{name}"
                      end
-              # Apply highlights to reformatted text, then add timestamp color
-              # Timestamp color (smaller range) takes priority over highlights
               @line_colors = HighlightProcessor.apply_highlights(text, [])
-              @line_colors.push({
-                start: 0,
-                end: 5,
-                fg: 'ff0000'
-              })
+              @line_colors.push({ start: 0, end: 5, fg: 'ff0000' })
+            elsif (gs_match = text.match(Games::GemStone::DEATH_PATTERN))
+              # GS death: "Name AREA HH:MM" with area code consolidation
+              name = gs_match[:name]
+              area = Games::GemStone.resolve_death_area(gs_match[:area])
+              timestamp = Time.now.strftime('%H:%M')
+              text = "#{timestamp} #{name} #{area}"
+              @line_colors = HighlightProcessor.apply_highlights(text, [])
+              @line_colors.push({ start: 0, end: 5, fg: 'ff0000' })
+            elsif text.match?(Games::GemStone::DEATH_SUPPRESS_PATTERN)
+              # GS vaporized/incinerated — suppress
+              text = ''
             end
           elsif @current_stream == 'logons'
-            logon_patterns = Games::DragonRealms::LOGON_PATTERNS
-            if (logon_match = text.match(/^\s\*\s(?<name>[A-Z][a-z]+) (?<type>#{logon_patterns.keys.join('|')})/))
+            # Try DR patterns first, then GS
+            dr_patterns = Games::DragonRealms::LOGON_PATTERNS
+            gs_patterns = Games::GemStone::LOGON_PATTERNS
+            all_patterns = dr_patterns.merge(gs_patterns)
+            if (logon_match = text.match(/^\s\*\s(?<name>[A-Z][a-z]+) (?<type>#{all_patterns.keys.map { |k| Regexp.escape(k) }.join('|')})/))
               name = logon_match[:name]
               logon_type = logon_match[:type]
               timestamp = Time.now.strftime('%H:%M')
               text = "#{timestamp} #{name}"
-              # Apply highlights to reformatted text, then add timestamp color
-              # Timestamp color (smaller range) takes priority over highlights
               @line_colors = HighlightProcessor.apply_highlights(text, [])
               @line_colors.push({
                 start: 0,
                 end: 5,
-                fg: logon_patterns[logon_type]
+                fg: all_patterns[logon_type]
               })
             end
           elsif @current_stream =~ /^(?:speech|thoughts|familiar)$/ && SPEECH_TS
