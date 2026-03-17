@@ -50,7 +50,7 @@ class ExpWindow < BaseWindow
   # @param text [String] the skill text to parse
   # @param _line_colors [Array<Hash>] color regions (unused; highlights are recomputed)
   # @return [void]
-  def add_string(text, _line_colors)
+  def add_string(text, _line_colors, indent: nil)
     match = text.match(%r{(?<name>.+):\s*(?<ranks>\d+) (?<percent>\d+)%  \[\s*(?<mindstate>\d+)/34\]})
     return unless match
 

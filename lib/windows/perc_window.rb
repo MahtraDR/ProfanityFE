@@ -40,8 +40,9 @@ class PercWindow < BaseWindow
   # @param string [String] the spell/effect text
   # @param string_colors [Array<Hash>] color region descriptors
   # @return [void]
-  def add_string(string, string_colors = [])
-    wrap_text(string, maxx - 1, string_colors, indent: @indent_word_wrap) do |line, line_colors|
+  def add_string(string, string_colors = [], indent: nil)
+    effective_indent = indent.nil? ? @indent_word_wrap : indent
+    wrap_text(string, maxx - 1, string_colors, indent: effective_indent) do |line, line_colors|
       @spells.store(line, line_colors) unless line.chomp.empty?
     end
   end

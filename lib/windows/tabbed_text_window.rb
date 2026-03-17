@@ -257,10 +257,10 @@ class TabbedTextWindow < BaseWindow
   # @param string [String] the text to append
   # @param string_colors [Array<Hash>] color region descriptors
   # @return [void]
-  def add_string(string, string_colors = [])
+  def add_string(string, string_colors = [], indent: nil)
     return unless @active_tab
 
-    add_string_to_tab(@active_tab, string, string_colors)
+    add_string_to_tab(@active_tab, string, string_colors, indent: indent)
   end
 
   # Scroll the active tab's buffer by the given number of lines.
