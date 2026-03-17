@@ -760,13 +760,16 @@ Thread.new { processor.run(server) }
 
 begin
   key_combo = nil
-  cmd_buffer.window.timeout = 100 # ms idle poll — getch returns instantly on key press
+  cmd_buffer.window.nodelay = true # non-blocking getch — we manage waiting via IO.select
   loop do
-    ch = cmd_buffer.window.getch
-    next if ch.nil? # timeout, no key
+    # IO.select is thread-safe and releases the GVL, so the server thread
+    # runs freely while we wait for terminal input.
+    IO.select([$stdin], nil, nil, 0.1)
 
-    # Synchronize key/mouse processing with server thread curses operations
+    # All curses calls (getch + key processing) inside the monitor
     CursesRenderer.synchronize do
+    ch = cmd_buffer.window.getch
+    next if ch.nil? # no input (timeout or false positive)
 
     # Handle mouse events first
     if ch == Curses::KEY_MOUSE
