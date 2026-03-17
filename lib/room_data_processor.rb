@@ -172,8 +172,9 @@ module RoomDataProcessor
       @room_pending_exits = nil
     end
 
-    # Re-render for non-exit updates (update_exits already renders internally)
-    window.render unless @current_stream == 'room exits'
+    # Defer room window render to the IO.select flush point to reduce
+    # curses operation frequency (update_exits already renders internally)
+    @need_room_render = true unless @current_stream == 'room exits'
 
     @need_update = true
     # Don't skip for room players - let the indicator handler also process it

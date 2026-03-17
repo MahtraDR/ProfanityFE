@@ -65,6 +65,7 @@ class GameTextProcessor
     @emptycount = 0
     @combat_next_line = nil
     @need_update = false
+    @need_room_render = false
 
     # Track content sent to dedicated stream windows to prevent duplicates to main
     @last_stream_text = nil
@@ -515,6 +516,10 @@ class GameTextProcessor
       #
       if @need_update && !IO.select([server], nil, nil, 0.001)
         @need_update = false
+        if @need_room_render
+          @wm.room['room']&.render
+          @need_room_render = false
+        end
         @cmd_buffer.window&.noutrefresh
         Curses.doupdate
       end
