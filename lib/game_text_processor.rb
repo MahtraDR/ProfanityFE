@@ -694,7 +694,7 @@ class GameTextProcessor
       HighlightProcessor.apply_highlights(text, @line_colors)
     end
 
-    unless text.empty?
+    unless text.strip.empty?
       if @current_stream
 
         # if text.match(/This is a test/)

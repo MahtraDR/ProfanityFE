@@ -134,10 +134,11 @@ module RoomDataProcessor
     case @current_stream
     when 'room', 'room title'
       @room_pending_title = text.strip
+      window.update_title(text.strip)
     when 'room desc', 'roomDesc'
       @room_pending_desc = text.strip
+      window.update_desc(text.strip)
     when 'room objs'
-      # Store pending instead of updating directly to avoid duplicates
       # Use raw line to preserve <pushBold/> tags for creature highlighting
       # Strip </component> tag which may be at end of raw line
       @room_pending_objects = if @current_raw_line && !@current_raw_line.empty?
@@ -145,17 +146,14 @@ module RoomDataProcessor
                               else
                                 text.strip
                               end
+      window.update_objects(@room_pending_objects)
     when 'room players'
       @room_pending_players = text.strip
+      window.update_players(text.strip)
       # Also update the indicator if present (fall through below)
     when 'room exits'
-      # Trigger batch update since exits are last
       @room_pending_exits = text.gsub(%r{</?d>}, '').strip
-      window.update_title(@room_pending_title || '')
-      window.update_desc(@room_pending_desc || '')
-      window.update_objects(@room_pending_objects || '')
-      window.update_players(@room_pending_players || '')
-      window.update_exits(@room_pending_exits || '')
+      window.update_exits(@room_pending_exits)
       # Clear pending data
       @room_pending_title = nil
       @room_pending_title_colors = nil
@@ -166,6 +164,9 @@ module RoomDataProcessor
       @room_pending_players = nil
       @room_pending_exits = nil
     end
+
+    # Re-render for non-exit updates (update_exits already renders internally)
+    window.render unless @current_stream == 'room exits'
 
     @need_update = true
     # Don't skip for room players - let the indicator handler also process it
