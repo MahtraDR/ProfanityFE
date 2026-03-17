@@ -169,6 +169,7 @@ cli_template = nil
 cli_no_status = false
 cli_links = false
 cli_speech_ts = false
+cli_room_window_only = false
 cli_remote_url = nil
 
 ARGV.each do |arg|
@@ -187,6 +188,7 @@ ARGV.each do |arg|
     puts '   --no-status                         Disable process title updates'
     puts '   --links                             Enable in-game link highlighting'
     puts '   --speech-ts                         Add timestamps to speech, familiar, and thought windows'
+    puts '   --room-window-only                  Do not echo room data to the story window'
     puts '   --remote-url=<url>                  Remote game server URL'
     puts '   --log-file=<path>                   Log file path (default: profanity.log)'
     puts '   --log-dir=<dir>                     Log directory (default: current directory)'
@@ -217,6 +219,8 @@ ARGV.each do |arg|
     cli_links = true
   elsif arg =~ /^--speech-ts$/
     cli_speech_ts = true
+  elsif arg =~ /^--room-window-only$/
+    cli_room_window_only = true
   elsif (match = arg.match(/^--remote-url=(?<url>.+)$/))
     cli_remote_url = match[:url]
   elsif (match = arg.match(/^--log-file=(?<file>.+)$/))
@@ -277,6 +281,7 @@ shared_state = SharedState.new
 shared_state.char_name = CHAR_NAME&.capitalize || 'ProfanityFE'
 shared_state.no_status = NO_STATUS
 shared_state.blue_links = cli_links
+shared_state.room_window_only = cli_room_window_only
 shared_state.update_terminal_title
 cmd_buffer = CommandBuffer.new
 window_mgr = WindowManager.new

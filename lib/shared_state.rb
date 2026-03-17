@@ -21,6 +21,9 @@ class SharedState
   # @return [Boolean] whether terminal title updates are suppressed
   attr_accessor :no_status
 
+  # @return [Boolean] whether room data is shown only in the room window (not echoed to story)
+  attr_accessor :room_window_only
+
   def initialize
     @mutex = Mutex.new
     @need_prompt = false
@@ -30,6 +33,7 @@ class SharedState
     @blue_links = false
     @char_name = nil
     @no_status = false
+    @room_window_only = false
     @last_title = nil
     @title_dirty = false
   end

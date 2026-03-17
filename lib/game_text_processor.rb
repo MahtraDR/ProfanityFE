@@ -634,8 +634,10 @@ class GameTextProcessor
       end
     end
 
-    # Room data capture for RoomWindow - skip routing to main window if captured
-    return if process_room_data(text, @line_colors)
+    # Room data capture for RoomWindow.
+    # Always capture for the room window; only suppress from the story window
+    # when --room-window-only is active.
+    return if process_room_data(text, @line_colors) && @state.room_window_only
 
     check_familiar_notification(text)
 
