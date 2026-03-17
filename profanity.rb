@@ -760,8 +760,11 @@ Thread.new { processor.run(server) }
 
 begin
   key_combo = nil
+  cmd_buffer.window.timeout = 1 # ms — getch returns instantly on key press; this is the idle poll interval
   loop do
+    CursesRenderer.synchronize do
     ch = cmd_buffer.window.getch
+    next if ch.nil? # timeout, no key — release monitor for server thread
 
     # Handle mouse events first
     if ch == Curses::KEY_MOUSE
@@ -856,6 +859,7 @@ begin
       cmd_buffer.refresh
       CursesRenderer.doupdate
     end
+    end # CursesRenderer.synchronize
   end
 rescue StandardError => e
   ProfanityLog.write('main', e.to_s, backtrace: e.backtrace)
