@@ -19,6 +19,9 @@ class RoomWindow < BaseWindow
   # @return [String, nil] preset name applied to creature highlight color
   attr_accessor :creatures_preset
 
+  # @return [Boolean] whether clickable links are rendered in the objects section
+  attr_accessor :links_enabled
+
   # Create a new room window with empty section fields.
   #
   # @param args [Array] arguments forwarded to {BaseWindow#initialize}
@@ -32,6 +35,7 @@ class RoomWindow < BaseWindow
     @stringprocs = ''
     @extracted_creatures = [] # For highlighting
     @rendered_lines = []      # [{text:, colors:}, ...] for link_cmd_at
+    @links_enabled = false
     super
   end
 
@@ -239,13 +243,44 @@ class RoomWindow < BaseWindow
     # Strip bold tags first
     clean_text = text.gsub(%r{</?(?:pushBold|popBold)\s*/?>}, '')
 
-    # Strip link tags, keeping only the link text
-    clean_text.gsub!(%r{<[ad]\s[^>]*>(.*?)</[ad]>}, '\1')
+    line_colors = []
+
+    # Extract link tags: colorize and record click commands when links are enabled,
+    # otherwise just strip the tags keeping the link text
+    if @links_enabled
+      link_preset = PRESET['links'] || GameTextProcessor::DEFAULT_LINK_COLOR
+      while (m = clean_text.match(%r{<([ad])\s([^>]*)>(.*?)</\1>}))
+        tag_start = m.begin(0)
+        attrs = m[2]
+        link_text = m[3]
+
+        cmd = nil
+        if (cmd_match = attrs.match(/cmd='([^']+)'/))
+          cmd = cmd_match[1]
+        elsif (exist_match = attrs.match(/exist="([^"]+)"/))
+          noun = attrs.match(/noun="([^"]+)"/)&.[](1)
+          cmd = noun ? "look ##{exist_match[1]}" : "_drag ##{exist_match[1]}"
+        end
+
+        clean_text = clean_text[0...tag_start] + link_text + clean_text[m.end(0)..]
+
+        if cmd
+          line_colors.push({
+            start: tag_start,
+            end: tag_start + link_text.length,
+            fg: link_preset[0],
+            bg: link_preset[1],
+            cmd: cmd,
+            priority: 2
+          })
+        end
+      end
+    else
+      clean_text.gsub!(%r{<[ad]\s[^>]*>(.*?)</[ad]>}, '\1')
+    end
 
     # Strip any remaining XML tags
     clean_text.gsub!(%r{<[^>]+>}, '')
-
-    line_colors = []
 
     # Highlight creatures with monsterbold preset
     preset_name = @creatures_preset || 'monsterbold'
@@ -265,7 +300,7 @@ class RoomWindow < BaseWindow
     end
 
     HighlightProcessor.apply_highlights(clean_text, line_colors)
-    add_line_wrapped(clean_text, line_colors)
+    add_line_wrapped_with_links(clean_text, line_colors)
   end
 
   # Word-wrap and render text across multiple lines, splitting color regions.

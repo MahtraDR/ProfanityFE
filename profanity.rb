@@ -482,6 +482,11 @@ execute_command = proc { |cmd|
     else
       mouse_scroll.disable_click_events
     end
+    # Update room window link state and re-render
+    if (room_win = window_mgr.room['room'])
+      room_win.links_enabled = shared_state.blue_links
+      room_win.render
+    end
     if (window = window_mgr.stream[MAIN_STREAM])
       msg = if shared_state.blue_links
               '* Links: ON (clickable links + drag-to-select)'
@@ -712,6 +717,7 @@ end
 
 window_mgr.load_layout('default')
 cmd_buffer.window = window_mgr.command_window
+window_mgr.room['room']&.links_enabled = cli_links
 
 unless cmd_buffer.window
   $stderr.puts "ERROR: Layout has no command window. Add <window class='command'/> to your layout."
