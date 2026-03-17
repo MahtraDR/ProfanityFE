@@ -239,40 +239,10 @@ class RoomWindow < BaseWindow
     # Strip bold tags first
     clean_text = text.gsub(%r{</?(?:pushBold|popBold)\s*/?>}, '')
 
-    # Extract and strip <d cmd='...'> and <a exist='...'> link tags,
-    # recording link positions and commands in the clean text
+    # Strip link tags, keeping only the link text
+    clean_text.gsub!(%r{<[ad]\s[^>]*>(.*?)</[ad]>}, '\1')
+
     line_colors = []
-    link_preset = PRESET['links'] || GameTextProcessor::DEFAULT_LINK_COLOR
-    while (m = clean_text.match(%r{<([ad])\s([^>]*)>(.*?)</\1>}))
-      tag_start = m.begin(0)
-      tag_name = m[1]
-      attrs = m[2]
-      link_text = m[3]
-
-      # Extract command from attributes
-      cmd = nil
-      if (cmd_match = attrs.match(/cmd='([^']+)'/))
-        cmd = cmd_match[1]
-      elsif (exist_match = attrs.match(/exist="([^"]+)"/))
-        noun = attrs.match(/noun="([^"]+)"/)&.[](1)
-        cmd = noun ? "look ##{exist_match[1]}" : "_drag ##{exist_match[1]}"
-      end
-
-      # Replace the full tag with just the link text
-      clean_text = clean_text[0...tag_start] + link_text + clean_text[m.end(0)..]
-
-      # Record link color region with :cmd for click dispatch
-      if cmd
-        line_colors.push({
-          start: tag_start,
-          end: tag_start + link_text.length,
-          fg: link_preset[0],
-          bg: link_preset[1],
-          cmd: cmd,
-          priority: 2
-        })
-      end
-    end
 
     # Highlight creatures with monsterbold preset
     preset_name = @creatures_preset || 'monsterbold'
@@ -292,7 +262,7 @@ class RoomWindow < BaseWindow
     end
 
     HighlightProcessor.apply_highlights(clean_text, line_colors)
-    add_line_wrapped_with_links(clean_text, line_colors)
+    add_line_wrapped(clean_text, line_colors)
   end
 
   # Word-wrap and render text across multiple lines, splitting color regions.
