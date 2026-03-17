@@ -31,6 +31,7 @@ class RoomWindow < BaseWindow
     @room_number = ''
     @stringprocs = ''
     @extracted_creatures = [] # For highlighting
+    @rendered_lines = []      # [{text:, colors:}, ...] for link_cmd_at
     super
   end
 
@@ -113,16 +114,14 @@ class RoomWindow < BaseWindow
   def render
     erase
     setpos(0, 0)
+    @rendered_lines = []
 
     # Room title with preset
     unless @title.empty?
-      # Format: [Room Name] (Room ID) - brackets only around name, not ID
-      # But apply preset color to entire line including room ID
       if (match = @title.match(/^(?<room_name>.+?)\s+\((?<room_id>\d+)\)$/))
         formatted_title = "[#{match[:room_name]}] (#{match[:room_id]})"
         render_section(formatted_title, @title_preset)
       else
-        # Fallback for titles without room ID
         render_section("[#{@title}]", @title_preset)
       end
       addstr("\n")
@@ -134,7 +133,7 @@ class RoomWindow < BaseWindow
       addstr("\n")
     end
 
-    # Objects (with creature highlighting)
+    # Objects (with creature highlighting and clickable links)
     unless @objects.empty?
       render_objects_section(@objects)
       addstr("\n")
@@ -162,6 +161,24 @@ class RoomWindow < BaseWindow
     render_section(@stringprocs, nil) unless @stringprocs.empty?
 
     noutrefresh
+  end
+
+  # Find a clickable link command at the given window-relative coordinates.
+  # Searches the rendered lines for a color region with a :cmd key.
+  #
+  # @param rel_y [Integer] row relative to window top
+  # @param rel_x [Integer] column relative to window left
+  # @return [String, nil] the link command string, or nil if no link
+  def link_cmd_at(rel_y, rel_x)
+    return nil if rel_y < 0 || rel_y >= @rendered_lines.length
+
+    colors = @rendered_lines[rel_y][:colors]
+    return nil unless colors
+
+    colors.each do |h|
+      return h[:cmd] if h[:cmd] && rel_x >= h[:start] && rel_x < h[:end]
+    end
+    nil
   end
 
   private
@@ -211,17 +228,52 @@ class RoomWindow < BaseWindow
     add_line_wrapped(text, line_colors)
   end
 
-  # Render the objects section with creature bold highlighting.
-  # Strips XML tags and applies the creatures preset to each creature name.
+  # Render the objects section with creature bold highlighting and clickable links.
+  # Strips XML tags, extracts link commands from <d>/<a> tags, and applies
+  # creature preset and link preset colors.
   #
-  # @param text [String] raw objects text with XML bold tags
+  # @param text [String] raw objects text with XML bold and link tags
   # @return [void]
   # @api private
   def render_objects_section(text)
-    # Strip XML tags for display
+    # Strip bold tags first
     clean_text = text.gsub(%r{</?(?:pushBold|popBold)\s*/?>}, '')
 
+    # Extract and strip <d cmd='...'> and <a exist='...'> link tags,
+    # recording link positions and commands in the clean text
     line_colors = []
+    link_preset = PRESET['links'] || GameTextProcessor::DEFAULT_LINK_COLOR
+    while (m = clean_text.match(%r{<([ad])\s([^>]*)>(.*?)</\1>}))
+      tag_start = m.begin(0)
+      tag_name = m[1]
+      attrs = m[2]
+      link_text = m[3]
+
+      # Extract command from attributes
+      cmd = nil
+      if (cmd_match = attrs.match(/cmd='([^']+)'/))
+        cmd = cmd_match[1]
+      elsif (exist_match = attrs.match(/exist="([^"]+)"/))
+        noun = attrs.match(/noun="([^"]+)"/)&.[](1)
+        cmd = noun ? "look ##{exist_match[1]}" : "_drag ##{exist_match[1]}"
+      end
+
+      # Replace the full tag with just the link text
+      clean_text = clean_text[0...tag_start] + link_text + clean_text[m.end(0)..]
+
+      # Record link color region with :cmd for click dispatch
+      if cmd
+        line_colors.push({
+          start: tag_start,
+          end: tag_start + link_text.length,
+          fg: link_preset[0],
+          bg: link_preset[1],
+          cmd: cmd,
+          priority: 2
+        })
+      end
+    end
+
     # Highlight creatures with monsterbold preset
     preset_name = @creatures_preset || 'monsterbold'
     if PRESET[preset_name]
@@ -240,7 +292,7 @@ class RoomWindow < BaseWindow
     end
 
     HighlightProcessor.apply_highlights(clean_text, line_colors)
-    add_line_wrapped(clean_text, line_colors)
+    add_line_wrapped_with_links(clean_text, line_colors)
   end
 
   # Word-wrap and render text across multiple lines, splitting color regions.
@@ -250,44 +302,51 @@ class RoomWindow < BaseWindow
   # @return [void]
   # @api private
   def add_line_wrapped(text, line_colors)
+    add_line_wrapped_with_links(text, line_colors)
+  end
+
+  # Word-wrap and render text, recording each line's colors (including :cmd)
+  # for link_cmd_at lookup.
+  def add_line_wrapped_with_links(text, line_colors)
     width = maxx
     pos = 0
 
     while pos < text.length
-      # Calculate line length (word wrap at width)
       remaining = text[pos..]
       if remaining.length <= width
         line = remaining
       else
-        # Try to break at word boundary
         line = remaining[0, width]
         if (break_pos = line.rindex(/\s/))
           line = remaining[0, break_pos + 1]
         end
       end
 
-      # Build colors for this line segment
+      # Build colors for this line segment, preserving :cmd for links
       current_colors = []
       line_colors.each do |c|
-        # Check if this color region overlaps with current line segment
         region_start = c[:start] - pos
         region_end = c[:end] - pos
 
         next unless region_end > 0 && region_start < line.length
 
-        current_colors.push({
+        h = {
           start: [region_start, 0].max,
           end: [region_end, line.length].min,
           fg: c[:fg],
           bg: c[:bg],
           ul: c[:ul]
-        })
+        }
+        h[:cmd] = c[:cmd] if c[:cmd]
+        current_colors.push(h)
       end
+
+      # Record for link_cmd_at lookup
+      @rendered_lines << { text: line.rstrip, colors: current_colors }
 
       add_line(line.rstrip, current_colors)
       pos += line.length
 
-      # Add newline if more content follows
       addstr("\n") if pos < text.length
     end
   end
