@@ -78,7 +78,7 @@ class RoomWindow < BaseWindow
   # @param text [String] the raw exits text
   # @return [void]
   def update_exits(text)
-    @exits = normalize_exits(text.strip)
+    @exits = text.strip
     render # Trigger full redraw on exits (last component)
   end
 
@@ -149,9 +149,9 @@ class RoomWindow < BaseWindow
       addstr("\n")
     end
 
-    # Exits
+    # Exits (with clickable direction links when links are enabled)
     unless @exits.empty?
-      render_section(@exits, nil)
+      render_exits_section(@exits)
       addstr("\n")
     end
 
@@ -298,6 +298,61 @@ class RoomWindow < BaseWindow
         end
       end
     end
+
+    HighlightProcessor.apply_highlights(clean_text, line_colors)
+    add_line_wrapped_with_links(clean_text, line_colors)
+  end
+
+  # Render the exits section with clickable direction links when links are enabled.
+  # Strips <compass> blocks and processes <d>/<a> tags for link clicking.
+  # For <d> tags without a cmd attribute, the link command is the direction text itself.
+  #
+  # @param text [String] raw exits text with XML tags
+  # @return [void]
+  # @api private
+  def render_exits_section(text)
+    # Strip compass block (contains <dir> elements, not needed for display)
+    clean_text = text.gsub(%r{<compass>.*?</compass>}m, '')
+
+    line_colors = []
+
+    if @links_enabled
+      link_preset = PRESET['links'] || GameTextProcessor::DEFAULT_LINK_COLOR
+      while (m = clean_text.match(%r{<([ad])\s?([^>]*)>(.*?)</\1>}))
+        tag_start = m.begin(0)
+        attrs = m[2]
+        link_text = m[3]
+
+        # For <d> tags in exits, command is the direction text itself (e.g., "north")
+        # For <a> tags (GS), use noun attribute as the direction command
+        cmd = if (cmd_match = attrs.match(/cmd='([^']+)'/))
+                cmd_match[1]
+              elsif (noun_match = attrs.match(/noun="([^"]+)"/))
+                noun_match[1]
+              else
+                link_text
+              end
+
+        clean_text = clean_text[0...tag_start] + link_text + clean_text[m.end(0)..]
+
+        line_colors.push({
+          start: tag_start,
+          end: tag_start + link_text.length,
+          fg: link_preset[0],
+          bg: link_preset[1],
+          cmd: cmd,
+          priority: 2
+        })
+      end
+    else
+      clean_text.gsub!(%r{<[ad]\s?[^>]*>(.*?)</[ad]>}, '\1')
+    end
+
+    # Strip any remaining XML tags
+    clean_text.gsub!(%r{<[^>]+>}, '')
+
+    # Append " none." if exits end with a bare colon
+    clean_text = "#{clean_text} none." if clean_text.rstrip.end_with?(':')
 
     HighlightProcessor.apply_highlights(clean_text, line_colors)
     add_line_wrapped_with_links(clean_text, line_colors)

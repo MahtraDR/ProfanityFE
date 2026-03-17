@@ -94,8 +94,12 @@ module RoomDataProcessor
 
     # Detect "Obvious paths:", "Obvious exits:", or "Room Exits:" for exits
     if text =~ /^(?:Obvious (?:paths|exits)|Room Exits):/
-      # Strip <d> tags from exits
-      @room_pending_exits = text.gsub(%r{</?d>}, '').strip
+      # Use raw line to preserve <d>/<a> tags for link processing in room window
+      @room_pending_exits = if @current_raw_line && (match = @current_raw_line.match(/(?:Obvious (?:paths|exits)|Room Exits):.*/))
+                               match[0].strip
+                             else
+                               text.strip
+                             end
       room_data_captured = true
       # Trigger room render since exits are typically last
       commit_room_data_batch
@@ -151,8 +155,9 @@ module RoomDataProcessor
       window.update_players(@room_pending_players)
       # Also update the indicator if present (fall through below)
     when 'room exits'
+      # Preserve raw XML — render_exits_section strips <d>, <a>, <compass> etc.
       raw = extract_component_content(@current_raw_line, 'room exits') if @current_raw_line
-      @room_pending_exits = strip_xml_tags(raw || text).strip
+      @room_pending_exits = (raw || text).strip
       window.update_exits(@room_pending_exits)
       # Clear pending data
       @room_pending_title = nil
