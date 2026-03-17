@@ -778,6 +778,7 @@ begin
             add_prompt(main, shared_state.prompt_text, link_cmd)
             CursesRenderer.doupdate
           end
+          cmd_buffer.add_to_history(link_cmd)
           server.puts link_cmd
           true
         end
