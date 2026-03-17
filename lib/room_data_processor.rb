@@ -62,7 +62,8 @@ module RoomDataProcessor
       @room_capture_mode = nil
     when :desc
       if @wm.room['room']
-        @room_pending_desc = text.strip
+        # Don't overwrite if already set by component stream (preserves raw XML for links)
+        @room_pending_desc = text.strip unless @room_pending_desc
         @room_pending_desc_colors = line_colors.dup
         room_data_captured = true
       end
@@ -88,7 +89,8 @@ module RoomDataProcessor
 
     # Detect "Also here:" for players
     if text =~ /^Also here:\s*(.+)$/
-      @room_pending_players = text.strip
+      # Don't overwrite if already set by component stream (preserves raw XML for links)
+      @room_pending_players = text.strip unless @room_pending_players
       room_data_captured = true
     end
 
