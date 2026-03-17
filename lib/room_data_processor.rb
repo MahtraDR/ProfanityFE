@@ -75,7 +75,8 @@ module RoomDataProcessor
 
     # Detect "You also see" for objects (may have leading whitespace)
     if text =~ /^\s*You also see\b/
-      # Extract from raw line to preserve <pushBold/> tags for RoomWindow creature highlighting
+      # Extract from raw line to preserve <pushBold/> tags for RoomWindow creature highlighting.
+      # Use regex here (not REXML) since inline text isn't inside a component element.
       @room_pending_objects = if @current_raw_line && (match = @current_raw_line.match(/You also see\b.*/))
                                 match[0].gsub(%r{</?(?:component|compDef)[^>]*>}, '').strip
                               else
@@ -132,28 +133,26 @@ module RoomDataProcessor
 
     case @current_stream
     when 'room', 'room title'
-      @room_pending_title = text.strip
-      window.update_title(text.strip)
+      raw = extract_component_content(@current_raw_line, @current_stream) if @current_raw_line
+      @room_pending_title = strip_xml_tags(raw || text).strip
+      window.update_title(@room_pending_title)
     when 'room desc', 'roomDesc'
-      @room_pending_desc = text.strip
-      window.update_desc(text.strip)
+      raw = extract_component_content(@current_raw_line, @current_stream) if @current_raw_line
+      @room_pending_desc = strip_xml_tags(raw || text).strip
+      window.update_desc(@room_pending_desc)
     when 'room objs'
-      # Extract content between component/compDef tags from raw line to preserve
-      # <pushBold/> tags for creature highlighting, without picking up unrelated
-      # tags (e.g., <right>) that may share the same server line
-      @room_pending_objects = if @current_raw_line &&
-                                 (match = @current_raw_line.match(%r{<(?:component|compDef)\s+id=['"]room objs['"][^>]*>(.*)</(?:component|compDef)>}))
-                                match[1].gsub(%r{</?b>}, '').strip
-                              else
-                                text.strip
-                              end
+      # Preserve raw XML — render_objects_section strips <pushBold/>, <a>, <d> etc.
+      raw = extract_component_content(@current_raw_line, 'room objs') if @current_raw_line
+      @room_pending_objects = (raw || text).strip
       window.update_objects(@room_pending_objects)
     when 'room players'
-      @room_pending_players = text.strip
-      window.update_players(text.strip)
+      raw = extract_component_content(@current_raw_line, 'room players') if @current_raw_line
+      @room_pending_players = strip_xml_tags(raw || text).strip
+      window.update_players(@room_pending_players)
       # Also update the indicator if present (fall through below)
     when 'room exits'
-      @room_pending_exits = text.gsub(%r{</?d>}, '').strip
+      raw = extract_component_content(@current_raw_line, 'room exits') if @current_raw_line
+      @room_pending_exits = strip_xml_tags(raw || text).strip
       window.update_exits(@room_pending_exits)
       # Clear pending data
       @room_pending_title = nil
@@ -175,6 +174,32 @@ module RoomDataProcessor
   end
 
   private
+
+  # Extract the inner XML content of a named component/compDef element from
+  # a raw server line using REXML.  Returns the inner markup as a string
+  # (preserving child tags like <pushBold/>) or nil if the element isn't found.
+  #
+  # @param raw_line [String] the full raw server line (may contain multiple XML elements)
+  # @param component_id [String] the id attribute to match (e.g., 'room objs')
+  # @return [String, nil] inner XML of the matched element, or nil
+  def extract_component_content(raw_line, component_id)
+    doc = REXML::Document.new("<root>#{raw_line}</root>")
+    element = doc.root.elements["component[@id='#{component_id}']"] ||
+              doc.root.elements["compDef[@id='#{component_id}']"]
+    return nil unless element
+
+    element.children.map(&:to_s).join
+  rescue REXML::ParseException
+    nil
+  end
+
+  # Strip all XML tags from text, keeping only the text content.
+  #
+  # @param text [String] text potentially containing XML tags
+  # @return [String] text with all XML tags removed
+  def strip_xml_tags(text)
+    text.gsub(%r{<[^>]+>}, '')
+  end
 
   # Commit all pending room data to the RoomWindow and clear the staging area.
   #
