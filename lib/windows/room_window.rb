@@ -194,7 +194,10 @@ class RoomWindow < BaseWindow
   # @api private
   def extract_creatures(text)
     # Extract bold-wrapped text: <pushBold/>creature<popBold/>
-    @extracted_creatures = text.scan(%r{<pushBold\s*/?>([^<]*)<popBold\s*/?>}).flatten
+    # Use (.*?) to handle GS where <a> tags appear inside pushBold regions
+    @extracted_creatures = text.scan(%r{<pushBold\s*/?>(.*?)<popBold\s*/?>}).flatten
+    # Strip any XML tags from extracted names (e.g., GS <a> tags around creatures)
+    @extracted_creatures.map! { |c| c.gsub(%r{<[^>]+>}, '') }
     # Update global for potential use elsewhere
     ROOM_OBJECTS.replace(@extracted_creatures)
   end
@@ -302,11 +305,11 @@ class RoomWindow < BaseWindow
         attrs = m[2]
         link_text = m[3]
 
-        cmd = if (cmd_match = attrs.match(/cmd='([^']+)'/))
-                cmd_match[1]
-              elsif (exist_match = attrs.match(/exist="([^"]+)"/))
-                noun = attrs.match(/noun="([^"]+)"/)&.[](1)
-                noun ? "look ##{exist_match[1]}" : "_drag ##{exist_match[1]}"
+        cmd = if (cmd_match = attrs.match(/cmd=(?<q>['"])([^'"]+)\k<q>/))
+                cmd_match[2]
+              elsif (exist_match = attrs.match(/exist=(?<q>['"])([^'"]+)\k<q>/))
+                noun_match = attrs.match(/noun=(?<q>['"])([^'"]+)\k<q>/)
+                noun_match ? "look ##{exist_match[2]}" : "_drag ##{exist_match[2]}"
               else
                 link_text
               end
