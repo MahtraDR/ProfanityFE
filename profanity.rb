@@ -760,11 +760,13 @@ Thread.new { processor.run(server) }
 
 begin
   key_combo = nil
-  cmd_buffer.window.timeout = 1 # ms — getch returns instantly on key press; this is the idle poll interval
+  cmd_buffer.window.timeout = 100 # ms idle poll — getch returns instantly on key press
   loop do
-    CursesRenderer.synchronize do
     ch = cmd_buffer.window.getch
-    next if ch.nil? # timeout, no key — release monitor for server thread
+    next if ch.nil? # timeout, no key
+
+    # Synchronize key/mouse processing with server thread curses operations
+    CursesRenderer.synchronize do
 
     # Handle mouse events first
     if ch == Curses::KEY_MOUSE
