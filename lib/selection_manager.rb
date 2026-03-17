@@ -112,9 +112,23 @@ module SelectionManager
       end
 
       # OSC 52 for remote/SSH sessions (write to tty to avoid curses interference)
+      # Wrap in DCS passthrough for terminal multiplexers that strip raw OSC 52:
+      #   GNU Screen ($STY): \eP\e]52;c;...\a\e\\
+      #   tmux ($TMUX):      \ePtmux;\e\e]52;c;...\a\e\\
       encoded = [text].pack('m0')
+      osc52 = if ENV['STY']
+                # GNU Screen DCS passthrough
+                "\eP\e]52;c;#{encoded}\a\e\\"
+              elsif ENV['TMUX']
+                # tmux DCS passthrough
+                "\ePtmux;\e\e]52;c;#{encoded}\a\e\\"
+              else
+                # Direct OSC 52
+                "\e]52;c;#{encoded}\a"
+              end
       begin
-        File.open('/dev/tty', 'w') { |tty| tty.write("\e]52;c;#{encoded}\a") }
+        File.open('/dev/tty', 'w') { |tty| tty.write(osc52) }
+        ProfanityLog.write('Clipboard', "OSC 52 sent (#{ENV['STY'] ? 'screen' : ENV['TMUX'] ? 'tmux' : 'direct'})")
       rescue StandardError
         nil # /dev/tty may not be available in all environments
       end
