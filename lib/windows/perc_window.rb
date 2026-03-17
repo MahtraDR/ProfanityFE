@@ -51,7 +51,7 @@ class PercWindow < BaseWindow
   #
   # @return [void]
   def redraw
-    clear
+    erase
     setpos(0, 0)
 
     begin
@@ -83,7 +83,7 @@ class PercWindow < BaseWindow
   #
   # @return [void]
   def clear_spells
-    clear
+    erase
     setpos(0, 0)
     noutrefresh
     redraw

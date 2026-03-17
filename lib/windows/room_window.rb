@@ -111,7 +111,7 @@ class RoomWindow < BaseWindow
   #
   # @return [void]
   def render
-    clear
+    erase
     setpos(0, 0)
 
     # Room title with preset

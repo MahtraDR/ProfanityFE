@@ -64,7 +64,7 @@ class ExpWindow < BaseWindow
   #
   # @return [void]
   def redraw
-    clear
+    erase
     setpos(0, 0)
 
     @skills.sort.each do |_name, skill|

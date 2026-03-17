@@ -206,7 +206,7 @@ class BaseWindow < Curses::Window
     @scrollbar_pos = nil
     return unless @scrollbar
 
-    @scrollbar.clear
+    @scrollbar.erase
     @scrollbar.noutrefresh
   end
 

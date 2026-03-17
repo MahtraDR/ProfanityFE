@@ -213,14 +213,12 @@ class GameTextProcessor
             end
           elsif (spell_match = xml.match(%r{^<spell(?:>|\s.*?>)(?<spell>.*?)</spell>$}))
             if (window = @wm.indicator['spell'])
-              window.clear
               window.label = spell_match[:spell]
               window.update(spell_match[:spell] == 'None' ? 0 : 1)
               @need_update = true
             end
           elsif (hand_match = xml.match(%r{^<(?<hand>right|left)(?:>|\s.*?>)(?<item>.*?\S*?)</\k<hand>>}))
             if (window = @wm.indicator[hand_match[:hand]])
-              window.clear
               window.label = hand_match[:item]
               window.update(hand_match[:item] == 'Empty' ? 0 : 1)
               @need_update = true
@@ -461,7 +459,6 @@ class GameTextProcessor
             unless room.empty?
               @state.room_title = room
               if (window = @wm.indicator['room'])
-                window.clear
                 window.label = room
                 window.update(1)
                 @need_update = true
@@ -655,12 +652,10 @@ class GameTextProcessor
     #   skip_nsys = true
     elsif text =~ /^You glance down at your empty hands\./
       if (window = @wm.indicator['right'])
-        window.clear
         window.label = 'Empty'
         @need_update = true
       end
       if (window = @wm.indicator['left'])
-        window.clear
         window.label = 'Empty'
         @need_update = true
       end
