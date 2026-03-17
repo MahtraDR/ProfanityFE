@@ -76,9 +76,8 @@ module RoomDataProcessor
     # Detect "You also see" for objects (may have leading whitespace)
     if text =~ /^\s*You also see\b/
       # Extract from raw line to preserve <pushBold/> tags for RoomWindow creature highlighting
-      # Strip </component> tag which may be at end of raw line
       @room_pending_objects = if @current_raw_line && (match = @current_raw_line.match(/You also see\b.*/))
-                                match[0].gsub(%r{</component>}, '').strip
+                                match[0].gsub(%r{</?(?:component|compDef)[^>]*>}, '').strip
                               else
                                 text.strip
                               end
@@ -140,9 +139,13 @@ module RoomDataProcessor
       window.update_desc(text.strip)
     when 'room objs'
       # Use raw line to preserve <pushBold/> tags for creature highlighting
-      # Strip </component> tag which may be at end of raw line
+      # Strip component/compDef wrapper tags and other non-content tags
       @room_pending_objects = if @current_raw_line && !@current_raw_line.empty?
-                                @current_raw_line.gsub(%r{</component>}, '').strip
+                                raw = @current_raw_line.dup
+                                raw.gsub!(%r{</?(?:component|compDef)[^>]*>}, '')
+                                raw.gsub!(%r{</?b>}, '')
+                                raw.gsub!(%r{<popStream[^>]*/>}, '')
+                                raw.strip
                               else
                                 text.strip
                               end

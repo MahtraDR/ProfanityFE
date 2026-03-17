@@ -242,6 +242,9 @@ class RoomWindow < BaseWindow
     # Strip link tags, keeping only the link text
     clean_text.gsub!(%r{<[ad]\s[^>]*>(.*?)</[ad]>}, '\1')
 
+    # Strip any remaining XML tags
+    clean_text.gsub!(%r{<[^>]+>}, '')
+
     line_colors = []
 
     # Highlight creatures with monsterbold preset

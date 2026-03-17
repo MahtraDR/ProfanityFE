@@ -848,6 +848,20 @@ class GameTextProcessor
             @state.need_prompt = false # Consume but don't display
           end
 
+          # Strip leading whitespace from room-captured text (e.g., "  You also see..."
+          # left after description extraction from the same server line)
+          if room_captured
+            stripped = text.lstrip
+            offset = text.length - stripped.length
+            if offset > 0
+              text = stripped
+              @line_colors.each do |h|
+                h[:start] = [h[:start] - offset, 0].max
+                h[:end] -= offset
+              end
+              @line_colors.delete_if { |h| h[:end] <= 0 }
+            end
+          end
           window.route_string(text, @line_colors, MAIN_STREAM, indent: room_captured ? false : nil)
           @need_update = true
           @last_was_movement = true if is_movement
