@@ -451,6 +451,9 @@ class GameTextProcessor
           elsif xml =~ %r{^</[ad]>$}
             if (h = @open_link.pop)
               h[:end] = start_pos
+              # For <d> tags without cmd/exist (e.g., exit directions),
+              # use the link text itself as the command
+              h[:cmd] ||= line[h[:start]...start_pos] if h[:start] && start_pos > h[:start]
               @line_colors.push(h) if h[:fg] or h[:bg]
             end
           # GS/DR room title: <streamWindow id='room' subtitle=" - [Room Name]"/>
