@@ -138,14 +138,12 @@ module RoomDataProcessor
       @room_pending_desc = text.strip
       window.update_desc(text.strip)
     when 'room objs'
-      # Use raw line to preserve <pushBold/> tags for creature highlighting
-      # Strip component/compDef wrapper tags and other non-content tags
-      @room_pending_objects = if @current_raw_line && !@current_raw_line.empty?
-                                raw = @current_raw_line.dup
-                                raw.gsub!(%r{</?(?:component|compDef)[^>]*>}, '')
-                                raw.gsub!(%r{</?b>}, '')
-                                raw.gsub!(%r{<popStream[^>]*/>}, '')
-                                raw.strip
+      # Extract content between component/compDef tags from raw line to preserve
+      # <pushBold/> tags for creature highlighting, without picking up unrelated
+      # tags (e.g., <right>) that may share the same server line
+      @room_pending_objects = if @current_raw_line &&
+                                 (match = @current_raw_line.match(%r{<(?:component|compDef)\s+id=['"]room objs['"][^>]*>(.*)</(?:component|compDef)>}))
+                                match[1].gsub(%r{</?b>}, '').strip
                               else
                                 text.strip
                               end
