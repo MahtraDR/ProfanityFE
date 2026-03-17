@@ -112,23 +112,29 @@ module SelectionManager
       end
 
       # OSC 52 for remote/SSH sessions (write to tty to avoid curses interference)
-      # Wrap in DCS passthrough for terminal multiplexers that strip raw OSC 52:
-      #   GNU Screen ($STY): \eP\e]52;c;...\a\e\\
-      #   tmux ($TMUX):      \ePtmux;\e\e]52;c;...\a\e\\
+      # Wrap in DCS passthrough for terminal multiplexers that strip raw OSC 52.
+      # GNU Screen limits DCS sequence length, so chunk large selections.
+      # Ref: https://nieko.net/blog/osc-52-and-nested-gnu-screen
       encoded = [text].pack('m0')
-      osc52 = if ENV['STY']
-                # GNU Screen DCS passthrough
-                "\eP\e]52;c;#{encoded}\a\e\\"
-              elsif ENV['TMUX']
-                # tmux DCS passthrough
-                "\ePtmux;\e\e]52;c;#{encoded}\a\e\\"
-              else
-                # Direct OSC 52
-                "\e]52;c;#{encoded}\a"
-              end
       begin
-        File.open('/dev/tty', 'w') { |tty| tty.write(osc52) }
-        ProfanityLog.write('Clipboard', "OSC 52 sent (#{ENV['STY'] ? 'screen' : ENV['TMUX'] ? 'tmux' : 'direct'})")
+        File.open('/dev/tty', 'w') do |tty|
+          if ENV['STY']
+            # GNU Screen: DCS passthrough with chunking for length limit.
+            # Screen's DCS limit is ~768 bytes; chunk base64 at 512 to be safe.
+            chunks = encoded.scan(/.{1,512}/)
+            chunks.each do |chunk|
+              tty.write("\eP\e]52;c;#{chunk}\a\e\\")
+            end
+          elsif ENV['TMUX']
+            # tmux DCS passthrough
+            tty.write("\ePtmux;\e\e]52;c;#{encoded}\a\e\\")
+          else
+            # Direct OSC 52
+            tty.write("\e]52;c;#{encoded}\a")
+          end
+          tty.flush
+        end
+        ProfanityLog.write('Clipboard', "OSC 52 sent (#{ENV['STY'] ? 'screen' : ENV['TMUX'] ? 'tmux' : 'direct'}, #{encoded.length} bytes)")
       rescue StandardError
         nil # /dev/tty may not be available in all environments
       end
