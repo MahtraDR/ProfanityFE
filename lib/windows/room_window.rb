@@ -211,30 +211,29 @@ class RoomWindow < BaseWindow
   end
 
   # Render a text section with an optional preset color and highlight processing.
+  # Handles link extraction from <d>/<a> tags when links are enabled.
   #
-  # @param text [String] the section text
+  # @param text [String] the section text (may contain XML link tags)
   # @param preset_name [String, nil] preset color key from the PRESET hash
   # @return [void]
   # @api private
   def render_section(text, preset_name)
-    line_colors = []
+    clean_text, line_colors = extract_links(text)
 
     if preset_name && PRESET[preset_name]
       line_colors.push({
         start: 0,
-        end: text.length,
+        end: clean_text.length,
         fg: PRESET[preset_name][0],
         bg: PRESET[preset_name][1]
       })
     end
 
-    HighlightProcessor.apply_highlights(text, line_colors)
-    add_line_wrapped(text, line_colors)
+    HighlightProcessor.apply_highlights(clean_text, line_colors)
+    add_line_wrapped_with_links(clean_text, line_colors)
   end
 
   # Render the objects section with creature bold highlighting and clickable links.
-  # Strips XML tags, extracts link commands from <d>/<a> tags, and applies
-  # creature preset and link preset colors.
   #
   # @param text [String] raw objects text with XML bold and link tags
   # @return [void]
@@ -243,44 +242,7 @@ class RoomWindow < BaseWindow
     # Strip bold tags first
     clean_text = text.gsub(%r{</?(?:pushBold|popBold)\s*/?>}, '')
 
-    line_colors = []
-
-    # Extract link tags: colorize and record click commands when links are enabled,
-    # otherwise just strip the tags keeping the link text
-    if @links_enabled
-      link_preset = PRESET['links'] || GameTextProcessor::DEFAULT_LINK_COLOR
-      while (m = clean_text.match(%r{<([ad])\s([^>]*)>(.*?)</\1>}))
-        tag_start = m.begin(0)
-        attrs = m[2]
-        link_text = m[3]
-
-        cmd = nil
-        if (cmd_match = attrs.match(/cmd='([^']+)'/))
-          cmd = cmd_match[1]
-        elsif (exist_match = attrs.match(/exist="([^"]+)"/))
-          noun = attrs.match(/noun="([^"]+)"/)&.[](1)
-          cmd = noun ? "look ##{exist_match[1]}" : "_drag ##{exist_match[1]}"
-        end
-
-        clean_text = clean_text[0...tag_start] + link_text + clean_text[m.end(0)..]
-
-        if cmd
-          line_colors.push({
-            start: tag_start,
-            end: tag_start + link_text.length,
-            fg: link_preset[0],
-            bg: link_preset[1],
-            cmd: cmd,
-            priority: 2
-          })
-        end
-      end
-    else
-      clean_text.gsub!(%r{<[ad]\s[^>]*>(.*?)</[ad]>}, '\1')
-    end
-
-    # Strip any remaining XML tags
-    clean_text.gsub!(%r{<[^>]+>}, '')
+    clean_text, line_colors = extract_links(clean_text)
 
     # Highlight creatures with monsterbold preset
     preset_name = @creatures_preset || 'monsterbold'
@@ -303,9 +265,7 @@ class RoomWindow < BaseWindow
     add_line_wrapped_with_links(clean_text, line_colors)
   end
 
-  # Render the exits section with clickable direction links when links are enabled.
-  # Strips <compass> blocks and processes <d>/<a> tags for link clicking.
-  # For <d> tags without a cmd attribute, the link command is the direction text itself.
+  # Render the exits section with clickable direction links.
   #
   # @param text [String] raw exits text with XML tags
   # @return [void]
@@ -314,6 +274,25 @@ class RoomWindow < BaseWindow
     # Strip compass block (contains <dir> elements, not needed for display)
     clean_text = text.gsub(%r{<compass>.*?</compass>}m, '')
 
+    clean_text, line_colors = extract_links(clean_text)
+
+    # Append " none." if exits end with a bare colon
+    clean_text = "#{clean_text} none." if clean_text.rstrip.end_with?(':')
+
+    HighlightProcessor.apply_highlights(clean_text, line_colors)
+    add_line_wrapped_with_links(clean_text, line_colors)
+  end
+
+  # Extract <d>/<a> link tags from text.
+  # When links are enabled, builds color regions with :cmd for click dispatch.
+  # When disabled, strips the tags keeping only the link text.
+  # Strips any remaining XML tags as a catch-all.
+  #
+  # @param text [String] text potentially containing link tags
+  # @return [Array(String, Array<Hash>)] [clean_text, line_colors]
+  # @api private
+  def extract_links(text)
+    clean_text = text.dup
     line_colors = []
 
     if @links_enabled
@@ -323,12 +302,11 @@ class RoomWindow < BaseWindow
         attrs = m[2]
         link_text = m[3]
 
-        # For <d> tags in exits, command is the direction text itself (e.g., "north")
-        # For <a> tags (GS), use noun attribute as the direction command
         cmd = if (cmd_match = attrs.match(/cmd='([^']+)'/))
                 cmd_match[1]
-              elsif (noun_match = attrs.match(/noun="([^"]+)"/))
-                noun_match[1]
+              elsif (exist_match = attrs.match(/exist="([^"]+)"/))
+                noun = attrs.match(/noun="([^"]+)"/)&.[](1)
+                noun ? "look ##{exist_match[1]}" : "_drag ##{exist_match[1]}"
               else
                 link_text
               end
@@ -351,11 +329,7 @@ class RoomWindow < BaseWindow
     # Strip any remaining XML tags
     clean_text.gsub!(%r{<[^>]+>}, '')
 
-    # Append " none." if exits end with a bare colon
-    clean_text = "#{clean_text} none." if clean_text.rstrip.end_with?(':')
-
-    HighlightProcessor.apply_highlights(clean_text, line_colors)
-    add_line_wrapped_with_links(clean_text, line_colors)
+    [clean_text, line_colors]
   end
 
   # Word-wrap and render text across multiple lines, splitting color regions.

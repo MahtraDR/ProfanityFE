@@ -141,8 +141,9 @@ module RoomDataProcessor
       @room_pending_title = strip_xml_tags(raw || text).strip
       window.update_title(@room_pending_title)
     when 'room desc', 'roomDesc'
+      # Preserve raw XML for link processing in room window
       raw = extract_component_content(@current_raw_line, @current_stream) if @current_raw_line
-      @room_pending_desc = strip_xml_tags(raw || text).strip
+      @room_pending_desc = (raw || text).strip
       window.update_desc(@room_pending_desc)
     when 'room objs'
       # Preserve raw XML — render_objects_section strips <pushBold/>, <a>, <d> etc.
@@ -150,8 +151,9 @@ module RoomDataProcessor
       @room_pending_objects = (raw || text).strip
       window.update_objects(@room_pending_objects)
     when 'room players'
+      # Preserve raw XML for link processing in room window (GS has <a> tags around names)
       raw = extract_component_content(@current_raw_line, 'room players') if @current_raw_line
-      @room_pending_players = strip_xml_tags(raw || text).strip
+      @room_pending_players = (raw || text).strip
       window.update_players(@room_pending_players)
       # Also update the indicator if present (fall through below)
     when 'room exits'
