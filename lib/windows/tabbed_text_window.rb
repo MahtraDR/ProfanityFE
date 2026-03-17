@@ -175,9 +175,9 @@ class TabbedTextWindow < BaseWindow
   # @param colors [Array<Hash>] color region descriptors
   # @param stream [String, nil] stream name used for tab routing
   # @return [void]
-  def route_string(text, colors, stream = nil)
+  def route_string(text, colors, stream = nil, indent: nil)
     target_tab = stream && @tabs.key?(stream) ? stream : (@active_tab || MAIN_STREAM)
-    add_string_to_tab(target_tab, text, colors)
+    add_string_to_tab(target_tab, text, colors, indent: indent)
   end
 
   # Check if the most recent non-empty line in the "main" tab matches the
@@ -201,7 +201,7 @@ class TabbedTextWindow < BaseWindow
   # @param string [String] the text to append
   # @param string_colors [Array<Hash>] color region descriptors
   # @return [void]
-  def add_string_to_tab(tab_name, string, string_colors = [])
+  def add_string_to_tab(tab_name, string, string_colors = [], indent: nil)
     return unless @tabs.key?(tab_name)
     return if string.nil? || string.chomp.empty?
 
@@ -211,7 +211,8 @@ class TabbedTextWindow < BaseWindow
     tab_buffer = @tabs[tab_name]
     tab_buffer_pos = @buffer_positions[tab_name]
 
-    wrap_text(string, content_width, string_colors, indent: @indent_word_wrap) do |line, line_colors|
+    effective_indent = indent.nil? ? @indent_word_wrap : indent
+    wrap_text(string, content_width, string_colors, indent: effective_indent) do |line, line_colors|
       tab_buffer.unshift([line, line_colors])
       if tab_buffer.length > @max_buffer_size
         tab_buffer.pop

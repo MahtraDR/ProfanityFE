@@ -637,7 +637,8 @@ class GameTextProcessor
     # Room data capture for RoomWindow.
     # Always capture for the room window; only suppress from the story window
     # when --room-window-only is active.
-    return if process_room_data(text, @line_colors) && @state.room_window_only
+    room_captured = process_room_data(text, @line_colors)
+    return if room_captured && @state.room_window_only
 
     check_familiar_notification(text)
 
@@ -847,7 +848,7 @@ class GameTextProcessor
             @state.need_prompt = false # Consume but don't display
           end
 
-          window.route_string(text, @line_colors, MAIN_STREAM)
+          window.route_string(text, @line_colors, MAIN_STREAM, indent: room_captured ? false : nil)
           @need_update = true
           @last_was_movement = true if is_movement
         end

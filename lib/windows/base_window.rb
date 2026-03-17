@@ -219,8 +219,8 @@ class BaseWindow < Curses::Window
   # @param colors [Array<Hash>] color region descriptors
   # @param _stream [String, nil] stream name (used by TabbedTextWindow override)
   # @return [void]
-  def route_string(text, colors, _stream = nil)
-    add_string(text, colors)
+  def route_string(text, colors, _stream = nil, indent: nil)
+    add_string(text, colors, indent: indent)
   end
 
   # Check if the most recent non-empty line matches the given prompt text.

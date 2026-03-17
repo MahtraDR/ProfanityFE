@@ -53,9 +53,10 @@ class TextWindow < BaseWindow
   # @param string [String] the text to append
   # @param string_colors [Array<Hash>] color region descriptors
   # @return [void]
-  def add_string(string, string_colors = [])
+  def add_string(string, string_colors = [], indent: nil)
     string += format_timestamp if @time_stamp && string && !string.chomp.empty?
-    wrap_text(string, maxx - 1, string_colors, indent: @indent_word_wrap) do |line, line_colors|
+    effective_indent = indent.nil? ? @indent_word_wrap : indent
+    wrap_text(string, maxx - 1, string_colors, indent: effective_indent) do |line, line_colors|
       @buffer.unshift([line, line_colors])
       @buffer.pop if @buffer.length > @max_buffer_size
       if @buffer_pos == 0
