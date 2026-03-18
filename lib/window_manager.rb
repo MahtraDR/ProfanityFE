@@ -115,7 +115,10 @@ class WindowManager
 
     event_bus.on(:add_prompt) do |data|
       window = @stream[data[:stream] || MAIN_STREAM]
-      add_prompt(window, data[:text], data[:command]) if window
+      next unless window
+      args = [window, data[:text]]
+      args << data[:command] if data[:command]
+      add_prompt(*args)
     end
 
     # ---- Indicator events ----
