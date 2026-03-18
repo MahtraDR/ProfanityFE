@@ -63,7 +63,9 @@ class CountdownWindow < BaseWindow
   # @param bg_code [String, nil] background hex color
   # @return [void]
   def draw_segment(text, fg_code, bg_code)
-    attr = Curses.color_pair(get_color_pair_id(fg_code, bg_code)) | Curses::A_NORMAL
+    pair_id = get_color_pair_id(fg_code, bg_code)
+    attr = Curses.color_pair(pair_id)
+    ProfanityLog.write('countdown', "draw_segment text=#{text.inspect} fg=#{fg_code.inspect} bg=#{bg_code.inspect} pair=#{pair_id} attr=#{attr.to_s(16)}")
     attrset(attr)
     addstr(text)
     attrset(Curses::A_NORMAL)
