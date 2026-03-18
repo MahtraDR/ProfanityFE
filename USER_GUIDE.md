@@ -1895,8 +1895,6 @@ CHAR=$1
 LICH_BIN=~/lich-5/lich.rbw
 PROFANITY_BIN=~/ProfanityFE/profanity.rb
 
-export TERM=screen-256color
-
 lookup_char_port () {
   local char=$1
   port=$(ps a | egrep -0 "\-\-login $char \-\-detachable-client=([0-9]+)" | egrep -o "[0-9]+" | sort | tail -n1)
