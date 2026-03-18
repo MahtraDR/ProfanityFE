@@ -156,7 +156,12 @@ rescue SyntaxError, ZeroDivisionError
 end
 
 def get_color_pair_id(_fg, _bg) = 0
-def add_prompt(*) = nil
+def add_prompt(window, prompt_text, cmd = '')
+  return if cmd.empty? && window.respond_to?(:duplicate_prompt?) && window.duplicate_prompt?(prompt_text)
+
+  prompt_colors = [{ start: 0, end: (prompt_text.length + cmd.length), fg: '555555' }]
+  window.route_string("#{prompt_text}#{cmd}", prompt_colors, MAIN_STREAM)
+end
 
 def parse_player_names(text)
   text.sub(/^Also here:\s*/, '')
