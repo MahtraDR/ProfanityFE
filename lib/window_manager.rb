@@ -415,11 +415,17 @@ class WindowManager
     window.refresh
     window.close
 
+    # Skip resize when terminal is too small — ncurses segfaults on
+    # invalid dimensions (negative/zero height or width, out-of-bounds
+    # positions). The windows will be repositioned on the next resize
+    # when the terminal is large enough.
+    return if Curses.lines < 3 || Curses.cols < 10
+
     first_text_window = true
     TextWindow.list.to_a.each do |win|
-      win.resize(fix_layout_number(win.layout[0]), fix_layout_number(win.layout[1]) - 1)
-      win.move(fix_layout_number(win.layout[2]), fix_layout_number(win.layout[3]))
-      win.scrollbar.resize(win.maxy, 1)
+      next unless safe_resize_move(win, fix_layout_number(win.layout[0]), fix_layout_number(win.layout[1]) - 1,
+                                   fix_layout_number(win.layout[2]), fix_layout_number(win.layout[3]))
+      win.scrollbar.resize([win.maxy, 1].max, 1)
       win.scrollbar.move(win.begy, win.begx + win.maxx)
       win.scroll(-win.maxy)
       win.scroll(win.maxy)
@@ -432,10 +438,10 @@ class WindowManager
     end
 
     TabbedTextWindow.list.to_a.each do |win|
-      win.resize(fix_layout_number(win.layout[0]), fix_layout_number(win.layout[1]) - 1)
-      win.move(fix_layout_number(win.layout[2]), fix_layout_number(win.layout[3]))
+      next unless safe_resize_move(win, fix_layout_number(win.layout[0]), fix_layout_number(win.layout[1]) - 1,
+                                   fix_layout_number(win.layout[2]), fix_layout_number(win.layout[3]))
       if win.scrollbar
-        win.scrollbar.resize(win.maxy, 1)
+        win.scrollbar.resize([win.maxy, 1].max, 1)
         win.scrollbar.move(win.begy, win.begx + win.maxx)
       end
       win.scroll(-win.maxy)
@@ -447,7 +453,7 @@ class WindowManager
 
     [ExpWindow, PercWindow, RoomWindow].each do |klass|
       klass.list.to_a.each do |win|
-        reposition(win)
+        next unless safe_reposition(win)
         win.redraw
         win.noutrefresh
       end
@@ -455,15 +461,21 @@ class WindowManager
 
     [IndicatorWindow, ProgressWindow, CountdownWindow].each do |klass|
       klass.list.to_a.each do |win|
-        reposition(win)
+        next unless safe_reposition(win)
         win.noutrefresh
       end
     end
 
-    if @command_window
-      @command_window.resize(fix_layout_number(@command_window_layout[0]), fix_layout_number(@command_window_layout[1]))
-      @command_window.move(fix_layout_number(@command_window_layout[2]), fix_layout_number(@command_window_layout[3]))
-      @command_window.noutrefresh
+    if @command_window && @command_window_layout
+      h = [fix_layout_number(@command_window_layout[0]), 1].max
+      w = [fix_layout_number(@command_window_layout[1]), 1].max
+      t = [fix_layout_number(@command_window_layout[2]), 0].max
+      l = [fix_layout_number(@command_window_layout[3]), 0].max
+      if t < Curses.lines && l < Curses.cols
+        @command_window.resize(h, w)
+        @command_window.move(t, l)
+        @command_window.noutrefresh
+      end
     end
 
     Curses.doupdate
@@ -471,6 +483,36 @@ class WindowManager
   end
 
   private
+
+  # Safely resize and move a window, clamping dimensions to valid ranges.
+  # ncurses segfaults on negative/zero dimensions or out-of-bounds positions.
+  #
+  # @param win [BaseWindow, Curses::Window] the window to resize and move
+  # @param height [Integer] desired height
+  # @param width [Integer] desired width
+  # @param top [Integer] desired top position
+  # @param left [Integer] desired left position
+  # @return [Boolean] true if the window was resized, false if skipped
+  def safe_resize_move(win, height, width, top, left)
+    height = [height, 1].max
+    width = [width, 1].max
+    top = [top, 0].max
+    left = [left, 0].max
+    return false unless top < Curses.lines && left < Curses.cols
+
+    win.resize(height, width)
+    win.move(top, left)
+    true
+  end
+
+  # Safely reposition a window using its stored layout expressions.
+  #
+  # @param win [BaseWindow] the window to reposition
+  # @return [Boolean] true if repositioned, false if skipped
+  def safe_reposition(win)
+    safe_resize_move(win, fix_layout_number(win.layout[0]), fix_layout_number(win.layout[1]),
+                     fix_layout_number(win.layout[2]), fix_layout_number(win.layout[3]))
+  end
 
   # Resize and reposition a window according to its stored layout.
   #
