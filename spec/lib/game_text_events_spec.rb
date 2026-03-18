@@ -352,6 +352,30 @@ RSpec.describe 'GameTextProcessor event emissions' do
       expect(room_spy.calls).to include([:update_players, a_string_matching(/Mahtra/)])
     end
 
+    it 'emits :room_players with empty text when an empty players component arrives' do
+      events = []
+      event_bus.on(:room_players) { |data| events << data }
+
+      process_line("<component id='room players'></component>")
+
+      expect(events.last).to include(text: '')
+    end
+
+    it 'clears room players indicator when an empty players component arrives' do
+      indicator_events = []
+      event_bus.on(:indicator_update) { |data| indicator_events << data if data[:id] == 'room players' }
+
+      process_line("<component id='room players'></component>")
+
+      expect(indicator_events.last).to include(id: 'room players', value: false)
+    end
+
+    it 'sets need_room_render for empty room components' do
+      process_line("<component id='room players'></component>")
+
+      expect(processor.send(:instance_variable_get, :@need_room_render)).to be true
+    end
+
     it 'room_render event triggers render on the room window' do
       room_spy = Object.new
       def room_spy.calls = @calls ||= []

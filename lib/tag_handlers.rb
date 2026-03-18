@@ -363,7 +363,15 @@ module TagHandlers
   # Handle <popStream.../>, </component>, or </compDef> stream-closing tag.
   # Flushes accumulated text and clears the current stream.
   def handle_stream_close(_xml, text_buffer)
-    flush_text_buffer(text_buffer)
+    if text_buffer.empty? && @current_stream&.start_with?('room') && @wm.room['room']
+      # Empty room components (e.g., <component id='room players'></component>)
+      # are meaningful — they clear the displayed data. Since flush_text_buffer
+      # skips empty text, handle this directly.
+      result = process_room_stream('')
+      update_room_players_indicator(nil) if result == :continue
+    else
+      flush_text_buffer(text_buffer)
+    end
     @event_bus.emit(:exp_delete_skill) if @current_stream == 'exp'
     @current_stream = nil
   end
