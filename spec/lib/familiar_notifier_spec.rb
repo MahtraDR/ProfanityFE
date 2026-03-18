@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Tests FamiliarNotifier event extraction (auction, empath, almanac, scroll,
+# focus, lockbox, tarantula, script STATUS) and check_familiar_notification
+# event emission with monsterbold colors.
+
 require_relative '../../lib/event_bus'
 require_relative '../../lib/familiar_notifier'
 

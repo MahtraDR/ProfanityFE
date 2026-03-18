@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Tests EventBus pub/sub: on/emit delivery, off removal, clear, subscriber
+# counting, and adversarial edge cases (no subscribers, mutation, exceptions,
+# reentrant emit, symbol vs string types).
+
 require_relative '../../lib/event_bus'
 
 RSpec.describe EventBus do

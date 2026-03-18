@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Tests SharedState thread-safe accessors: prompt, room_title, time
+# offset, blue_links, atomic update_prompt/consume_prompt!, and
+# terminal title generation with dedup.
+
 require_relative '../../lib/shared_state'
 
 RSpec.describe SharedState do

@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# Tests GameTextProcessor#handle_game_text event emissions: indicator
+# updates (empty hands, nsys), stream routing (main, dedicated, fallback),
+# prompt handling (emit/suppress after movement), stun detection, combat
+# gag, and highlight application.
+
 require_relative '../spec_helper'
 require_relative '../../lib/game_text_processor'
 
@@ -193,6 +198,18 @@ RSpec.describe 'GameTextProcessor event emissions' do
       process('You walk north.')
       expect(processor.send(:instance_variable_get, :@last_was_movement)).to be true
     end
+
+    %w[run go swim climb crawl drag stride sneak stalk].each do |verb|
+      it "detects '#{verb}' as a movement verb" do
+        process("You #{verb} through the archway.")
+        expect(processor.send(:instance_variable_get, :@last_was_movement)).to be true
+      end
+    end
+
+    it 'does not detect non-movement verbs as movement' do
+      process('You attack the goblin.')
+      expect(processor.send(:instance_variable_get, :@last_was_movement)).to be false
+    end
   end
 
   # ---- Stun detection ----
@@ -214,6 +231,24 @@ RSpec.describe 'GameTextProcessor event emissions' do
       process('  You are stunned for 12 rounds!')
 
       expect(events.last).to include(seconds: 60)
+    end
+
+    it 'emits stun for single round (1 round = 5 seconds)' do
+      events = []
+      event_bus.on(:stun) { |data| events << data }
+
+      process('You are stunned for 1 round!')
+
+      expect(events.last).to include(seconds: 5)
+    end
+
+    it 'does not emit stun for non-stun text containing "stunned"' do
+      events = []
+      event_bus.on(:stun) { |data| events << data }
+
+      process('The goblin looks stunned.')
+
+      expect(events).to be_empty
     end
   end
 

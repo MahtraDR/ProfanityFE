@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# Tests XmlTokenizer: .tokenize splits game server lines into [:text, ...]
+# and [:tag, ...] segments; .tag_name extracts element names from raw tags.
+# Covers paired tags, self-closing tags, nested content, entities, and
+# adversarial malformed input.
+
 require_relative '../../lib/xml_tokenizer'
 
 RSpec.describe XmlTokenizer do
@@ -169,6 +174,35 @@ RSpec.describe XmlTokenizer do
       expect(tags.length).to eq 4
       expect(texts.length).to eq 1
       expect(texts.first.last).to eq 'a goblin'
+    end
+
+    # ---- Adversarial: attribute edge cases ----
+
+    it 'handles attributes containing > inside quotes' do
+      line = %q{<prompt time="123">H&gt;</prompt>}
+      result = described_class.tokenize(line)
+      expect(result.first[0]).to eq :tag
+    end
+
+    it 'handles self-closing tags with extra spaces' do
+      result = described_class.tokenize('<pushBold  />')
+      expect(result.first).to eq [:tag, '<pushBold  />']
+    end
+
+    it 'handles deeply nested content (10 levels of tags)' do
+      inner = 'deep text'
+      10.times { inner = "<b>#{inner}</b>" }
+      result = described_class.tokenize(inner)
+      texts = result.select { |type, _| type == :text }
+      expect(texts.length).to eq 1
+      expect(texts.first.last).to eq 'deep text'
+    end
+
+    it 'handles tags with single-quoted and double-quoted attributes on same line' do
+      line = %q{<preset id='roomDesc'><style id="roomName"/>}
+      result = described_class.tokenize(line)
+      expect(result.length).to eq 2
+      expect(result).to all(satisfy { |type, _| type == :tag })
     end
   end
 

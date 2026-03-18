@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Tests LinkExtractor: extract_cmd for GS <a exist/noun> and DR <d cmd>
+# tags, extract_links_from_text for inline link discovery with color
+# regions, and DEFAULT_LINK_COLOR constant.
+
 require_relative '../../lib/link_extractor'
 
 RSpec.describe LinkExtractor do

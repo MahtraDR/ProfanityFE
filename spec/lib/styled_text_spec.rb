@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Tests StyledText value object: immutable text + color runs bundling,
+# #slice, #lstrip, #wrap (word-wrap with run splitting), #<<, #add_run,
+# and #dup_with_runs. Includes adversarial edge cases for wrapping.
+
 require_relative '../../lib/styled_text'
 
 RSpec.describe StyledText do
@@ -342,6 +346,52 @@ RSpec.describe StyledText do
         # (may have natural spaces from word breaks)
         expect(lines[1].text).not_to start_with('  ')
       end
+    end
+
+    it 'splits a run exactly at a word boundary' do
+      # Run ends at "Hello" (5), wrap at width 6 breaks after "Hello "
+      st = described_class.new('Hello world', [
+        { start: 0, end: 5, fg: 'ff0000' },
+        { start: 6, end: 11, fg: '00ff00' }
+      ])
+      lines = st.wrap(6, indent: false)
+      expect(lines[0].text.strip).to eq 'Hello'
+      expect(lines[0].runs.first[:fg]).to eq 'ff0000'
+      expect(lines[1].runs.first[:fg]).to eq '00ff00'
+    end
+
+    it 'handles a run that spans exactly the wrap width' do
+      st = described_class.new('AAAA BBBB', [
+        { start: 0, end: 9, fg: 'ff0000' }
+      ])
+      lines = st.wrap(4, indent: false)
+      lines.each do |line|
+        line.runs.each do |run|
+          expect(run[:start]).to be >= 0
+          expect(run[:end]).to be <= line.text.length
+        end
+      end
+    end
+
+    it 'handles UTF-8 multi-byte characters in text' do
+      st = described_class.new('café résumé', [
+        { start: 0, end: 4, fg: 'ff0000' },
+        { start: 5, end: 11, fg: '00ff00' }
+      ])
+      lines = st.wrap(6, indent: false)
+      all_text = lines.map(&:text).join
+      expect(all_text.gsub(/\s+/, ' ').strip).to include('café')
+      expect(all_text.gsub(/\s+/, ' ').strip).to include('résumé')
+    end
+
+    it 'handles CJK characters without crashing' do
+      st = described_class.new('日本語テスト', [
+        { start: 0, end: 6, fg: 'ff0000' }
+      ])
+      lines = st.wrap(3, indent: false)
+      expect(lines.flat_map { |l| l.runs }).to all(
+        satisfy { |r| r[:start] >= 0 && r[:end] <= lines.find { |l| l.runs.include?(r) }.text.length }
+      )
     end
   end
 

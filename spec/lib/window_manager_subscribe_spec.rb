@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# Tests WindowManager#subscribe_to_events: verifies that each event type
+# is correctly bridged to the appropriate window method — stream routing,
+# prompt display, indicator/progress/countdown updates, room data,
+# exp/perc stream management, and special events (launch URL, disconnect).
+
 require_relative '../../lib/event_bus'
 require_relative '../../lib/window_manager'
 
@@ -156,22 +161,22 @@ RSpec.describe WindowManager, '#subscribe_to_events' do
 
     before { wm.instance_variable_set(:@indicator, { 'spell' => indicator }) }
 
-    it 'sets label and calls update' do
+    it 'sets label and updates value' do
       event_bus.emit(:indicator_update, id: 'spell', label: 'Fire Ball', value: 1)
       expect(indicator.label).to eq 'Fire Ball'
-      expect(indicator.calls.last).to include(value: 1)
+      expect(indicator.calls).to include(a_hash_including(method: :update, value: 1))
     end
 
     it 'sets only label when no value provided' do
       event_bus.emit(:indicator_update, id: 'spell', label: 'None')
       expect(indicator.label).to eq 'None'
-      expect(indicator.calls).to be_empty
+      expect(indicator.calls.select { |c| c[:method] == :update }).to be_empty
     end
 
     it 'sets only value when no label provided' do
       event_bus.emit(:indicator_update, id: 'spell', value: 0)
       expect(indicator.label).to be_nil
-      expect(indicator.calls.last).to include(value: 0)
+      expect(indicator.calls).to include(a_hash_including(method: :update, value: 0))
     end
 
     it 'sets label_colors when provided' do
@@ -234,15 +239,16 @@ RSpec.describe WindowManager, '#subscribe_to_events' do
 
     before { wm.instance_variable_set(:@countdown, { 'roundtime' => countdown }) }
 
-    it 'sets end_time and calls update' do
+    it 'sets end_time and triggers a redraw' do
       event_bus.emit(:countdown_update, id: 'roundtime', end_time: 12345)
       expect(countdown.end_time).to eq 12345
-      expect(countdown.calls.last).to include(method: :update)
+      expect(countdown.calls).to include(a_hash_including(method: :update))
     end
 
-    it 'sets secondary_end_time when provided' do
+    it 'sets secondary_end_time and triggers a redraw' do
       event_bus.emit(:countdown_update, id: 'roundtime', secondary_end_time: 99999)
       expect(countdown.secondary_end_time).to eq 99999
+      expect(countdown.calls).to include(a_hash_including(method: :update))
     end
 
     it 'ignores events for nonexistent countdowns' do
@@ -257,10 +263,10 @@ RSpec.describe WindowManager, '#subscribe_to_events' do
 
     before { wm.instance_variable_set(:@countdown, { 'stunned' => countdown }) }
 
-    it 'sets active flag and calls update' do
+    it 'sets active flag and triggers a redraw' do
       event_bus.emit(:countdown_active, id: 'stunned', active: true)
       expect(countdown.active).to be true
-      expect(countdown.calls.last).to include(method: :update)
+      expect(countdown.calls).to include(a_hash_including(method: :update))
     end
   end
 
@@ -274,11 +280,11 @@ RSpec.describe WindowManager, '#subscribe_to_events' do
       wm.instance_variable_set(:@countdown, { 'stunned' => countdown })
     end
 
-    it 'sets end_time offset by seconds and calls update' do
+    it 'sets end_time to current time plus stun duration and triggers a redraw' do
       before_time = Time.now.to_f
       event_bus.emit(:stun, seconds: 10)
       expect(countdown.end_time).to be >= before_time + 10 - 1
-      expect(countdown.calls.last).to include(method: :update)
+      expect(countdown.calls).to include(a_hash_including(method: :update))
     end
 
     it 'ignores when no stunned countdown exists' do

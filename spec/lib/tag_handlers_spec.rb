@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+# Tests TagHandlers module dispatch and individual tag handlers: prompt,
+# spell, hand, roundtime, casttime, compass, progressBar, arbProgress,
+# bold, preset, color, style, stream open/close, links, indicator, image,
+# LaunchURL, streamWindow. Uses a minimal host class with event recording.
+
 require_relative '../../lib/event_bus'
 require_relative '../../lib/xml_tokenizer'
 require_relative '../../lib/tag_handlers'

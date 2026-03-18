@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Tests KillRing's emacs-style kill/yank accumulation: consecutive kills
+# merge, non-kill operations reset accumulation, yank retrieves the
+# combined text.
+
 require_relative '../../lib/kill_ring'
 
 RSpec.describe KillRing do

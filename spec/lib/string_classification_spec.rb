@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Tests StringClassification refinement: word_char?, whitespace_char?,
+# and punctuation_char? predicates for cursor word-movement logic.
+
 require_relative '../../lib/string_classification'
 using StringClassification
 

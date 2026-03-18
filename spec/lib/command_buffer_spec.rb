@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Tests CommandBuffer's text editing (insert, delete, word operations),
+# cursor movement, kill ring (kill-forward, kill-line, yank), command
+# history navigation, horizontal scrolling, and clear_and_get.
+
 require_relative '../../lib/kill_ring'
 require_relative '../../lib/string_classification'
 require_relative '../../lib/command_buffer'
@@ -703,6 +707,59 @@ RSpec.describe CommandBuffer do
       buf.cursor_home
       # Should insert chars that were scrolled off the left
       expect(narrow.call_log.map(&:first)).to include(:insch)
+    end
+  end
+
+  # ==================================================================
+  # UTF-8 multi-byte characters
+  # ==================================================================
+
+  describe 'multi-byte UTF-8 characters' do
+    it 'inserts multi-byte characters and tracks cursor position correctly' do
+      type('café')
+      expect(buf.text).to eq 'café'
+      expect(buf.pos).to eq 4
+    end
+
+    it 'handles backspace on multi-byte character' do
+      type('café')
+      buf.backspace
+      expect(buf.text).to eq 'caf'
+      expect(buf.pos).to eq 3
+    end
+
+    it 'preserves emoji in buffer text' do
+      buf.put_ch('🎮')
+      buf.put_ch('!')
+      expect(buf.text).to include('🎮')
+      expect(buf.text).to include('!')
+    end
+
+    it 'handles CJK characters in text' do
+      type('日本語')
+      expect(buf.text).to eq '日本語'
+      expect(buf.pos).to eq 3
+    end
+  end
+
+  # ==================================================================
+  # Large history
+  # ==================================================================
+
+  describe 'large command history' do
+    it 'handles 500 history entries without degradation' do
+      500.times { |i| buf.add_to_history("command_#{i.to_s.rjust(4, '0')}") }
+      # History starts with [''] sentinel, so total is 501
+      expect(buf.history.length).to be >= 500
+
+      buf.previous_command
+      expect(buf.text).to eq 'command_0499'
+    end
+
+    it 'navigates to oldest entry in large history' do
+      100.times { |i| buf.add_to_history("cmd_#{i}") }
+      100.times { buf.previous_command }
+      expect(buf.text).to eq 'cmd_0'
     end
   end
 end

@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# Tests Application's initialization, dot-command dispatch (.quit, .help,
+# .links, .arrow, .layout), macro engine (\\r, \\x, @), key action
+# bindings, and countdown tick polling.
+
 require_relative '../../lib/shared_state'
 require_relative '../../lib/kill_ring'
 require_relative '../../lib/string_classification'
@@ -341,13 +345,14 @@ RSpec.describe Application do
       expect(app_char.shared_state.char_name).to eq 'Mahtra'
     end
 
-    # BUG FOUND: CommandBuffer cursor methods call @window.setpos without
-    # nil-guarding. If a key action fires before the window is attached
-    # (e.g., during startup race or after layout error), it crashes with
-    # NoMethodError. CommandBuffer#refresh already nil-guards (@window&.),
-    # but cursor_left/right/home/end do not.
-    it 'key_action cursor procs crash without window (known issue)' do
-      expect { app.key_action['cursor_left'].call }.to raise_error(NoMethodError)
+    # CommandBuffer cursor methods call @window.setpos without nil-guarding.
+    # If a key action fires before the window is attached (e.g., during
+    # startup race or after layout error), it crashes with NoMethodError.
+    # CommandBuffer#refresh already nil-guards (@window&.), but
+    # cursor_left/right/home/end do not.
+    it 'key_action cursor procs crash without window' do
+      pending 'CommandBuffer cursor methods need nil-guard on @window'
+      app.key_action['cursor_left'].call
     end
   end
 

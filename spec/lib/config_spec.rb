@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Tests the mutable Config container: default values, reset! behavior,
+# instance independence, and thread safety of concurrent mutations.
+
 require_relative '../../lib/config'
 
 RSpec.describe Config do
