@@ -178,51 +178,28 @@ module TagHandlers
     @need_update = true
   end
 
-  # Handle <roundTime value='N'/> tag. Starts a countdown timer thread.
+  # Handle <roundTime value='N'/> tag. Sets the countdown end time.
+  # The countdown display is polled by Application#tick_countdowns
+  # on every input loop iteration (~100ms).
   def handle_roundtime_tag(xml, _text_buffer)
     return unless (m = xml.match(/^<roundTime value=(?<q>'|")(?<value>[0-9]+)\k<q>/))
     return unless (window = @wm.countdown['roundtime'])
 
-    temp_roundtime_end = m[:value].to_i
-    window.end_time = temp_roundtime_end
+    window.end_time = m[:value].to_i
     window.update
     @need_update = true
-    Thread.new do
-      sleep 0.15
-      while (window.end_time == temp_roundtime_end) && (window.value > 0)
-        sleep 0.15
-        CursesRenderer.render do
-          next unless window.update
-
-          @cmd_buffer.window&.noutrefresh
-        end
-      end
-    rescue StandardError => e
-      ProfanityLog.write('roundtime thread', e.to_s, backtrace: e.backtrace)
-    end
   end
 
-  # Handle <castTime value='N'/> tag. Starts a secondary countdown timer thread.
+  # Handle <castTime value='N'/> tag. Sets the secondary countdown end time.
+  # The countdown display is polled by Application#tick_countdowns
+  # on every input loop iteration (~100ms).
   def handle_casttime_tag(xml, _text_buffer)
     return unless (m = xml.match(/^<castTime value=(?<q>'|")(?<value>[0-9]+)\k<q>/))
     return unless (window = @wm.countdown['roundtime'])
 
-    temp_casttime_end = m[:value].to_i
-    window.secondary_end_time = temp_casttime_end
+    window.secondary_end_time = m[:value].to_i
     window.update
     @need_update = true
-    Thread.new do
-      while (window.secondary_end_time == temp_casttime_end) && (window.secondary_value > 0)
-        sleep 0.15
-        CursesRenderer.render do
-          next unless window.update
-
-          @cmd_buffer.window&.noutrefresh
-        end
-      end
-    rescue StandardError => e
-      ProfanityLog.write('casttime thread', e.to_s, backtrace: e.backtrace)
-    end
   end
 
   # Handle <compass>...<dir value="n"/>...</compass> paired tag.

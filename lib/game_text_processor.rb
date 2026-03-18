@@ -256,30 +256,18 @@ class GameTextProcessor
     safe_eval_arithmetic(str)
   end
 
-  # Start a countdown timer for the stun indicator window.
-  # Spawns a background thread that ticks the countdown display
-  # every 150ms until it reaches zero.
+  # Set the stun countdown timer end time.
+  # The countdown display is polled by Application#tick_countdowns
+  # on every input loop iteration (~100ms).
   #
   # @param seconds [Integer, Float] duration of the stun in seconds
   # @return [void]
   # @api private
   def new_stun(seconds)
     if (window = @wm.countdown['stunned'])
-      temp_stun_end = Time.now.to_f - $server_time_offset.to_f + seconds.to_f
-      window.end_time = temp_stun_end
+      window.end_time = Time.now.to_f - $server_time_offset.to_f + seconds.to_f
       window.update
-      Thread.new do
-        while (window.end_time == temp_stun_end) && (window.value > 0)
-          sleep 0.15
-          CursesRenderer.render do
-            next unless window.update
-
-            @cmd_buffer.window&.noutrefresh
-          end
-        end
-      rescue StandardError => e
-        ProfanityLog.write('stun thread', e.to_s, backtrace: e.backtrace)
-      end
+      @need_update = true
     end
   end
 

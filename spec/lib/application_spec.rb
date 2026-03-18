@@ -350,4 +350,75 @@ RSpec.describe Application do
       expect { app.key_action['cursor_left'].call }.to raise_error(NoMethodError)
     end
   end
+
+  # ---- Countdown ticker ----
+
+  describe '#tick_countdowns' do
+    let(:countdown_window) do
+      obj = Object.new
+      def obj.updates = @updates ||= []
+      def obj.update
+        updates << Time.now
+        updates.length <= 3 # return true for first 3 calls
+      end
+      obj
+    end
+
+    before do
+      app.window_mgr.instance_variable_set(:@countdown, { 'roundtime' => countdown_window })
+      app.cmd_buffer.window = Curses::Window.new(1, 80, 0, 0)
+    end
+
+    it 'calls update on all countdown windows' do
+      app.send(:tick_countdowns)
+      expect(countdown_window.updates.length).to eq 1
+    end
+
+    it 'returns true when any countdown changed' do
+      expect(app.send(:tick_countdowns)).to be true
+    end
+
+    it 'refreshes cmd_buffer window when countdown changed' do
+      app.cmd_buffer.window.call_log.clear
+      app.send(:tick_countdowns)
+      expect(app.cmd_buffer.window.call_log.map(&:first)).to include(:noutrefresh)
+    end
+
+    it 'returns false when no countdowns are registered' do
+      app.window_mgr.instance_variable_set(:@countdown, {})
+      expect(app.send(:tick_countdowns)).to be false
+    end
+
+    it 'does not crash when cmd_buffer has no window' do
+      app.cmd_buffer.window = nil
+      expect { app.send(:tick_countdowns) }.not_to raise_error
+    end
+
+    it 'handles multiple countdown windows' do
+      stun_window = Object.new
+      def stun_window.update = true
+      app.window_mgr.instance_variable_set(:@countdown, {
+        'roundtime' => countdown_window,
+        'stunned' => stun_window,
+      })
+      expect(app.send(:tick_countdowns)).to be true
+      expect(countdown_window.updates.length).to eq 1
+    end
+
+    it 'returns false when all countdowns return false (no change)' do
+      no_change = Object.new
+      def no_change.update = false
+      app.window_mgr.instance_variable_set(:@countdown, { 'roundtime' => no_change })
+      expect(app.send(:tick_countdowns)).to be false
+    end
+
+    it 'does not call noutrefresh when nothing changed' do
+      no_change = Object.new
+      def no_change.update = false
+      app.window_mgr.instance_variable_set(:@countdown, { 'roundtime' => no_change })
+      app.cmd_buffer.window.call_log.clear
+      app.send(:tick_countdowns)
+      expect(app.cmd_buffer.window.call_log.map(&:first)).not_to include(:noutrefresh)
+    end
+  end
 end

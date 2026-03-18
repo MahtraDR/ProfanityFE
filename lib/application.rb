@@ -455,6 +455,20 @@ class Application
 
   # ---- Input loop ----
 
+  # Poll all countdown windows and flush if any changed.
+  # Called on every input loop iteration (~100ms) to replace the
+  # per-countdown Thread.new pattern.
+  #
+  # @return [Boolean] true if any countdown display changed
+  def tick_countdowns
+    any_updated = false
+    @window_mgr.countdown.each_value do |window|
+      any_updated = true if window.update
+    end
+    @cmd_buffer.window&.noutrefresh if any_updated
+    any_updated
+  end
+
   def input_loop
     key_combo = nil
     @cmd_buffer.window.nodelay = true
@@ -463,8 +477,14 @@ class Application
       IO.select([$stdin], nil, nil, 0.1)
 
       CursesRenderer.synchronize do
+        # Tick countdowns on every iteration (~100ms), regardless of input
+        countdown_updated = tick_countdowns
+
         ch = @cmd_buffer.window.getch
-        next if ch.nil?
+        if ch.nil?
+          Curses.doupdate if countdown_updated
+          next
+        end
 
         if ch == Curses::KEY_MOUSE
           handle_mouse_event
