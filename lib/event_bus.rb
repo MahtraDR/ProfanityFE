@@ -65,7 +65,7 @@ class EventBus
   # @return [Integer]
   def subscriber_count(event_type = nil)
     if event_type
-      @subscribers[event_type].size
+      @subscribers.key?(event_type) ? @subscribers[event_type].size : 0
     else
       @subscribers.values.sum(&:size)
     end

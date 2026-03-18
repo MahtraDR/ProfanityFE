@@ -47,6 +47,9 @@ class GameTextProcessor
   include FamiliarNotifier
   include TagHandlers
 
+  # Movement verbs that suppress the following prompt and empty line.
+  MOVEMENT_PATTERN = /^You (?:run|walk|go|swim|climb|crawl|drag|stride|sneak|stalk)\b/
+
   # Create a new processor wired to the given window manager and shared state.
   #
   # @param window_mgr [WindowManager] provides handler hashes for stream/indicator/progress/countdown/room windows
@@ -110,8 +113,6 @@ class GameTextProcessor
 
     while (line = server.gets)
 
-      # File.write("combatlog.txt", line.inspect + "\n", mode: "a")
-
       if line =~ %r{^<popBold/>}
         @bold_next_line = false
       elsif @bold_next_line == true
@@ -144,20 +145,18 @@ class GameTextProcessor
           # Check if last line in ANY tab was movement (backup check)
           main_window = @wm.stream[MAIN_STREAM]
           last_line_was_movement = false
-          movement_pattern = /^You (?:run|walk|go|swim|climb|crawl|drag|stride|sneak|stalk)\b/
-
           if main_window.is_a?(TabbedTextWindow)
             # Check all tabs for recent movement (movement could be in main, combat, etc.)
             main_window.tabs.each_value do |tab_buffer|
               last_entry = tab_buffer.find { |entry| entry[0] && !entry[0].strip.empty? }
-              if last_entry && last_entry[0] =~ movement_pattern
+              if last_entry && last_entry[0] =~ MOVEMENT_PATTERN
                 last_line_was_movement = true
                 break
               end
             end
           elsif main_window.respond_to?(:buffer) && !main_window.buffer.empty?
             last_entry = main_window.buffer.find { |entry| entry[0] && !entry[0].strip.empty? }
-            last_line_was_movement = last_entry && last_entry[0] =~ movement_pattern
+            last_line_was_movement = last_entry && last_entry[0] =~ MOVEMENT_PATTERN
           end
 
           # Skip prompt and empty line after movement (use flag OR buffer check)
@@ -249,6 +248,27 @@ class GameTextProcessor
   def fix_layout_number(str)
     str = str.gsub('lines', Curses.lines.to_s).gsub('cols', Curses.cols.to_s)
     safe_eval_arithmetic(str)
+  end
+
+  # Append a speech timestamp to text (e.g., "Hello (3:45:12)").
+  #
+  # @param text [String] the text to append to
+  # @return [String] text with appended timestamp
+  # @api private
+  def append_speech_timestamp(text)
+    "#{text} (#{Time.now.strftime('%H:%M:%S').sub(/^0/, '')})"
+  end
+
+  # Emit a prompt to the main stream if one is pending and the last
+  # line was not a movement command. Consumes the pending flag either way.
+  #
+  # @return [void]
+  # @api private
+  def emit_prompt_if_needed
+    return unless @state.need_prompt
+
+    @state.need_prompt = false
+    @event_bus.emit(:add_prompt, stream: MAIN_STREAM, text: @state.prompt_text) unless @last_was_movement
   end
 
   # Set the stun countdown timer end time via the event bus.
@@ -350,7 +370,7 @@ class GameTextProcessor
     end
 
     # Apply highlight patterns to all routable streams
-    if @current_stream.nil? or @wm.stream[@current_stream] or (@current_stream =~ /^(?:death|logons|thoughts|voln|familiar|assess|ooc|shopWindow|combat|moonWindow|atmospherics)$/)
+    if @current_stream.nil? || @wm.stream[@current_stream] || @current_stream =~ /^(?:death|logons|thoughts|voln|familiar|assess|ooc|shopWindow|combat|moonWindow|atmospherics)$/
       HighlightProcessor.apply_highlights(text, @line_colors)
     end
 
@@ -418,7 +438,7 @@ class GameTextProcessor
               })
             end
           elsif @current_stream =~ /^(?:speech|thoughts|familiar)$/ && SPEECH_TS
-            text = "#{text} (#{Time.now.strftime('%H:%M:%S').sub(/^0/, '')})"
+            text = append_speech_timestamp(text)
           end
 
           if @current_stream == 'exp'
@@ -459,7 +479,7 @@ class GameTextProcessor
         elsif @current_stream =~ /^(?:death|logons|thoughts|voln|familiar|assess|ooc|shopWindow|combat|moonWindow|atmospherics)$/
           # Append timestamp to speech/thoughts/familiar when --speech-ts is active
           if @current_stream =~ /^(?:thoughts|familiar)$/ && SPEECH_TS
-            text = "#{text} (#{Time.now.strftime('%H:%M:%S').sub(/^0/, '')})"
+            text = append_speech_timestamp(text)
           end
           if PRESET[@current_stream]
             @line_colors.push(start: 0, fg: PRESET[@current_stream][0], bg: PRESET[@current_stream][1],
@@ -467,14 +487,8 @@ class GameTextProcessor
           end
           unless text.empty?
             # Detect movement in stream content too
-            @last_was_movement = true if text =~ /^You (?:run|walk|go|swim|climb|crawl|drag|stride|sneak|stalk)\b/
-
-            if @state.need_prompt && !@last_was_movement
-              @state.need_prompt = false
-              @event_bus.emit(:add_prompt, stream: MAIN_STREAM, text: @state.prompt_text)
-            elsif @state.need_prompt
-              @state.need_prompt = false # Consume but don't display after movement
-            end
+            @last_was_movement = true if text =~ MOVEMENT_PATTERN
+            emit_prompt_if_needed
             @event_bus.emit(:stream_text, stream: MAIN_STREAM, text: text, colors: @line_colors)
             @need_update = true
           end
@@ -485,15 +499,8 @@ class GameTextProcessor
           @last_stream_text = nil
         else
           # Detect movement messages to suppress following prompts/empty lines
-          is_movement = text =~ /^You (?:run|walk|go|swim|climb|crawl|drag|stride|sneak|stalk)\b/
-
-          # Skip prompt after movement
-          if @state.need_prompt && !@last_was_movement
-            @state.need_prompt = false
-            @event_bus.emit(:add_prompt, stream: MAIN_STREAM, text: @state.prompt_text)
-          elsif @state.need_prompt
-            @state.need_prompt = false # Consume but don't display
-          end
+          is_movement = text =~ MOVEMENT_PATTERN
+          emit_prompt_if_needed
 
           # Strip leading whitespace from room-captured text (e.g., "  You also see..."
           # left after description extraction from the same server line)

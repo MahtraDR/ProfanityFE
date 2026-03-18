@@ -166,15 +166,7 @@ module RoomDataProcessor
       raw = extract_component_content(@current_raw_line, 'room exits') if @current_raw_line
       @room_pending_exits = (raw || text).strip
       @event_bus.emit(:room_exits, text: @room_pending_exits)
-      # Clear pending data
-      @room_pending_title = nil
-      @room_pending_title_colors = nil
-      @room_pending_desc = nil
-      @room_pending_desc_colors = nil
-      @room_pending_objects = nil
-      @room_pending_objects_colors = nil
-      @room_pending_players = nil
-      @room_pending_exits = nil
+      clear_pending_room_data
     end
 
     # Defer room window render to the IO.select flush point to reduce
@@ -187,6 +179,21 @@ module RoomDataProcessor
   end
 
   private
+
+  # Reset all pending room data slots to nil.
+  #
+  # @return [void]
+  def clear_pending_room_data
+    @room_pending_title = nil
+    @room_pending_title_colors = nil
+    @room_pending_desc = nil
+    @room_pending_desc_colors = nil
+    @room_pending_objects = nil
+    @room_pending_objects_colors = nil
+    @room_pending_players = nil
+    @room_pending_exits = nil
+    @room_pending_number = nil
+  end
 
   # Extract the inner XML content of a named component/compDef element from
   # a raw server line using REXML.  Returns the inner markup as a string
@@ -235,15 +242,7 @@ module RoomDataProcessor
       # Also update the room players indicator (fallback for games that don't use streams)
       update_room_players_indicator(@room_pending_players)
 
-      # Clear pending data
-      @room_pending_title = nil
-      @room_pending_title_colors = nil
-      @room_pending_desc = nil
-      @room_pending_desc_colors = nil
-      @room_pending_objects = nil
-      @room_pending_objects_colors = nil
-      @room_pending_players = nil
-      @room_pending_number = nil
+      clear_pending_room_data
     end
 
     # Always update exits (even on subsequent exit lines)
@@ -257,17 +256,12 @@ module RoomDataProcessor
   # @param players_text [String, nil] raw "Also here:" text or nil
   # @return [void]
   def update_room_players_indicator(players_text)
-    if players_text
-      names = parse_player_names(players_text)
-      if names.any?
-        names_text = names.join(', ')
-        label_colors = HighlightProcessor.apply_highlights(names_text, [])
-        @event_bus.emit(:indicator_update, id: 'room players', label: names_text, label_colors: label_colors, value: true)
-      else
-        @event_bus.emit(:indicator_update, id: 'room players', label: ' ', label_colors: nil, value: false)
-      end
+    names = players_text ? parse_player_names(players_text) : []
+    if names.any?
+      names_text = names.join(', ')
+      label_colors = HighlightProcessor.apply_highlights(names_text, [])
+      @event_bus.emit(:indicator_update, id: 'room players', label: names_text, label_colors: label_colors, value: true)
     else
-      # No players in room - clear the indicator
       @event_bus.emit(:indicator_update, id: 'room players', label: ' ', label_colors: nil, value: false)
     end
   end
