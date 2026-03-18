@@ -84,6 +84,7 @@ class CountdownWindow < BaseWindow
                         0].max
     if old_value != @value || old_secondary_value != @secondary_value || @old_active != @active
       str = "#{@label}#{[@value, @secondary_value].max.to_s.rjust(maxx - @label.length)}"
+      ProfanityLog.write('countdown', "update val=#{@value} sec=#{@secondary_value} active=#{@active.inspect} end=#{@end_time} sec_end=#{@secondary_end_time} offset=#{$server_time_offset.inspect}")
       setpos(0, 0)
       if (@value == 0 && @secondary_value == 0) || @active == false
         if @active
