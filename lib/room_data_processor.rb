@@ -106,10 +106,10 @@ module RoomDataProcessor
       room_data_captured = true
     end
 
-    # Detect "Obvious paths:", "Obvious exits:", or "Room Exits:" for exits
-    if text =~ /^(?:Obvious (?:paths|exits)|Room Exits):/
+    # Detect "Obvious paths:" or "Obvious exits:" for exits (game-native)
+    if text =~ /^Obvious (?:paths|exits):/
       # Use raw line to preserve <d>/<a> tags for link processing in room window
-      @room_pending_exits = if @current_raw_line && (match = @current_raw_line.match(/(?:Obvious (?:paths|exits)|Room Exits):.*/))
+      @room_pending_exits = if @current_raw_line && (match = @current_raw_line.match(/Obvious (?:paths|exits):.*/))
                                match[0].strip
                              else
                                text.strip
@@ -119,8 +119,17 @@ module RoomDataProcessor
       commit_room_data_batch
     end
 
-    # Detect "Room Number:" or "StringProcs:" lines (come after exits)
-    if text =~ /^Room Number:\s*\d+/
+    # Detect Lich-injected supplemental lines (come after game exits)
+    if text =~ /^Room Exits:/
+      raw = if @current_raw_line && (match = @current_raw_line.match(/Room Exits:.*/))
+              match[0].strip
+            else
+              text.strip
+            end
+      @event_bus.emit(:room_lich_exits, text: raw)
+      room_data_captured = true
+      @need_update = true
+    elsif text =~ /^Room Number:\s*\d+/
       @event_bus.emit(:room_number, text: text.strip)
       room_data_captured = true
       @need_update = true

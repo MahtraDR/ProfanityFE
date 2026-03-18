@@ -249,6 +249,10 @@ class WindowManager
       @room['room']&.update_exits(data[:text])
     end
 
+    event_bus.on(:room_lich_exits) do |data|
+      @room['room']&.update_lich_exits(data[:text])
+    end
+
     event_bus.on(:room_number) do |data|
       @room['room']&.update_room_number(data[:text])
     end

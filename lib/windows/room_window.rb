@@ -33,6 +33,7 @@ class RoomWindow < BaseWindow
     @objects = ''
     @players = ''
     @exits = ''
+    @lich_exits = ''
     @room_number = ''
     @stringprocs = ''
     @extracted_creatures = [] # For highlighting
@@ -84,6 +85,15 @@ class RoomWindow < BaseWindow
     render # Trigger full redraw on exits (last component)
   end
 
+  # Update the Lich-injected supplemental exits (non-cardinal "Room Exits:").
+  #
+  # @param text [String] the raw Lich exits text (may contain <d> link tags)
+  # @return [void]
+  def update_lich_exits(text)
+    @lich_exits = text.strip
+    render
+  end
+
   # Update the room number text and re-render.
   #
   # @param text [String] the raw room number text
@@ -107,6 +117,7 @@ class RoomWindow < BaseWindow
   #
   # @return [void]
   def clear_supplemental
+    @lich_exits = ''
     @room_number = ''
     @stringprocs = ''
   end
@@ -154,6 +165,12 @@ class RoomWindow < BaseWindow
     # Exits (with clickable direction links when links are enabled)
     unless @exits.empty?
       render_exits_section(@exits)
+      addstr("\n")
+    end
+
+    # Lich supplemental exits (non-cardinal "Room Exits:")
+    unless @lich_exits.empty?
+      render_exits_section(@lich_exits)
       addstr("\n")
     end
 
