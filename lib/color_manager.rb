@@ -143,6 +143,8 @@ module ColorManager
         Curses.init_pair(color_pair_id, fg_id, bg_id)
         color_pair_id
       end
+    end
+
     private
 
     # Convert a 6-digit hex color code to curses RGB values (0-1000 range).
