@@ -46,6 +46,8 @@ class CountdownWindow < BaseWindow
     @old_active = nil
     @end_time = 0
     @secondary_end_time = 0
+    @value = 0
+    @secondary_value = 0
     super
   end
 

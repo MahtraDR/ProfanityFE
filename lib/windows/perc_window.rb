@@ -55,8 +55,14 @@ class PercWindow < BaseWindow
     erase
     setpos(0, 0)
 
+    # Atomically swap the spells hash before iterating to prevent
+    # data loss if add_string is called from the parser thread
+    # between sort and clear.
+    spells_to_render = @spells
+    @spells = {}
+
     begin
-      @spells.sort_by do |key, _val|
+      spells_to_render.sort_by do |key, _val|
         # Parse duration from spell text like "Spell Name (5 roisaen)" or "Spell (Cyclic)"
         # Returns sort weight: higher = show first
         duration_part = key.to_s.split(/\s+(?=\()/)[1]
@@ -76,7 +82,6 @@ class PercWindow < BaseWindow
     rescue StandardError => e
       ProfanityLog.write('perc_window', "Error sorting spells: #{e}", backtrace: e.backtrace)
     end
-    @spells = {}
     noutrefresh
   end
 

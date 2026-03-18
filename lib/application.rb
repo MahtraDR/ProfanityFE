@@ -430,7 +430,7 @@ class Application
     @server.puts "SET_FRONTEND_PID #{Process.pid}"
     @server.flush
 
-    $server_time_offset = 0.0
+    @shared_state.server_time_offset = 0.0
 
     # Time sync thread
     Thread.new do

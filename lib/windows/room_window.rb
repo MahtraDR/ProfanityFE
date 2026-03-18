@@ -310,7 +310,7 @@ class RoomWindow < BaseWindow
   # Word-wrap and render text, recording each line's colors (including :cmd)
   # for link_cmd_at lookup.
   def add_line_wrapped_with_links(text, line_colors)
-    width = maxx
+    width = [maxx, 1].max
     pos = 0
 
     while pos < text.length
@@ -319,9 +319,8 @@ class RoomWindow < BaseWindow
         line = remaining
       else
         line = remaining[0, width]
-        if (break_pos = line.rindex(/\s/))
-          line = remaining[0, break_pos + 1]
-        end
+        break_pos = line.rindex(/\s/)
+        line = remaining[0, break_pos + 1] if break_pos && break_pos > 0
       end
 
       # Build colors for this line segment, preserving :cmd for links

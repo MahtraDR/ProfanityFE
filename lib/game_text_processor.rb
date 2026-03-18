@@ -50,6 +50,11 @@ class GameTextProcessor
   # Movement verbs that suppress the following prompt and empty line.
   MOVEMENT_PATTERN = /^You (?:run|walk|go|swim|climb|crawl|drag|stride|sneak|stalk)\b/
 
+  # Precomputed merged logon patterns (DR + GS) and matching regex.
+  # Built once at load time instead of on every logon line.
+  ALL_LOGON_PATTERNS = Games::DragonRealms::LOGON_PATTERNS.merge(Games::GemStone::LOGON_PATTERNS).freeze
+  LOGON_REGEXP = /^\s\*\s(?<name>[A-Z][a-z]+) (?<type>#{ALL_LOGON_PATTERNS.keys.map { |k| Regexp.escape(k) }.join('|')})/
+
   # Create a new processor wired to the given window manager and shared state.
   #
   # @param window_mgr [WindowManager] provides handler hashes for stream/indicator/progress/countdown/room windows
@@ -421,11 +426,7 @@ class GameTextProcessor
               text = ''
             end
           elsif @current_stream == 'logons'
-            # Try DR patterns first, then GS
-            dr_patterns = Games::DragonRealms::LOGON_PATTERNS
-            gs_patterns = Games::GemStone::LOGON_PATTERNS
-            all_patterns = dr_patterns.merge(gs_patterns)
-            if (logon_match = text.match(/^\s\*\s(?<name>[A-Z][a-z]+) (?<type>#{all_patterns.keys.map { |k| Regexp.escape(k) }.join('|')})/))
+            if (logon_match = text.match(LOGON_REGEXP))
               name = logon_match[:name]
               logon_type = logon_match[:type]
               timestamp = Time.now.strftime('%H:%M')
@@ -434,7 +435,7 @@ class GameTextProcessor
               @line_colors.push({
                 start: 0,
                 end: 5,
-                fg: all_patterns[logon_type]
+                fg: ALL_LOGON_PATTERNS[logon_type]
               })
             end
           elsif @current_stream =~ /^(?:speech|thoughts|familiar)$/ && SPEECH_TS

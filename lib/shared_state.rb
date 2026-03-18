@@ -34,8 +34,25 @@ class SharedState
     @char_name = nil
     @no_status = false
     @room_window_only = false
+    @server_time_offset = 0.0
     @last_title = nil
     @title_dirty = false
+  end
+
+  # @return [Float] seconds offset between local clock and server clock
+  def server_time_offset
+    @mutex.synchronize { @server_time_offset }
+  end
+
+  # Update the server time offset. Also writes through to the
+  # +$server_time_offset+ global for backward compatibility with
+  # CountdownWindow which reads it on every tick.
+  #
+  # @param val [Float] new time offset
+  # @return [void]
+  def server_time_offset=(val)
+    @mutex.synchronize { @server_time_offset = val }
+    $server_time_offset = val
   end
 
   # @return [Boolean] whether a prompt display is pending

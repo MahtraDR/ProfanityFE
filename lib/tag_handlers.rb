@@ -135,7 +135,7 @@ module TagHandlers
     return unless (m = xml.match(%r{^<prompt time=(?<q>'|")(?<time>[0-9]+)\k<q>.*?>(?<text>.*?)&gt;</prompt>$}))
 
     unless @state.skip_server_time_offset
-      $server_time_offset = Time.now.to_f - m[:time].to_f
+      @state.server_time_offset = Time.now.to_f - m[:time].to_f
       @state.skip_server_time_offset = true
     end
 

@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
+require_relative '../spec_helper'
 require_relative '../../lib/game_text_processor'
 
 RSpec.describe 'GameTextProcessor event emissions' do
+  before { GagPatterns.load_defaults }
+
   let(:main_window) do
     obj = Object.new
     def obj.route_string(*) = nil
@@ -19,9 +22,9 @@ RSpec.describe 'GameTextProcessor event emissions' do
   end
   let(:state) do
     Struct.new(:need_prompt, :prompt_text, :skip_server_time_offset,
-               :room_title, :blue_links, :room_window_only) do
+               :room_title, :blue_links, :room_window_only, :server_time_offset) do
       def update_terminal_title = nil
-    end.new(false, '>', true, '', false, false)
+    end.new(false, '>', true, '', false, false, 0.0)
   end
   let(:cmd_buffer) { Struct.new(:window).new(nil) }
   let(:xml_escapes) { { '&lt;' => '<', '&gt;' => '>', '&quot;' => '"', '&apos;' => "'", '&amp;' => '&' } }
