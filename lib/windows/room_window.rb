@@ -160,43 +160,43 @@ class RoomWindow < BaseWindow
       else
         render_section("[#{@title}]", @title_preset)
       end
-      addstr("\n")
+      section_break
     end
 
     # Room description
     unless @description.empty?
       render_section_with_links(@description, @desc_links, @desc_preset)
-      addstr("\n")
+      section_break
     end
 
     # Objects (with creature highlighting and clickable links)
     unless @objects.empty?
       render_objects_section
-      addstr("\n")
+      section_break
     end
 
     # Players
     unless @players.empty?
       render_section_with_links(@players, @players_links, nil)
-      addstr("\n")
+      section_break
     end
 
     # Exits (with clickable direction links when links are enabled)
     unless @exits.empty?
       render_exits_section(@exits, @exits_links)
-      addstr("\n")
+      section_break
     end
 
     # Lich supplemental exits (non-cardinal "Room Exits:")
     unless @lich_exits.empty?
       render_lich_exits_section(@lich_exits)
-      addstr("\n")
+      section_break
     end
 
     # Room number
     unless @room_number.empty?
       render_section(@room_number, nil)
-      addstr("\n")
+      section_break
     end
 
     # StringProcs
@@ -224,6 +224,17 @@ class RoomWindow < BaseWindow
   end
 
   private
+
+  # Advance to the next line after a section. When the last rendered line
+  # exactly fills the window width, curses auto-wraps the cursor to column 0
+  # of the next line. An unconditional addstr("\n") would then produce a
+  # spurious blank line. This checks the cursor column first.
+  #
+  # @return [void]
+  # @api private
+  def section_break
+    addstr("\n") unless curx == 0
+  end
 
   # Render a text section with an optional preset color.
   # No link processing — used for title, room number, stringprocs.
