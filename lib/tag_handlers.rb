@@ -11,7 +11,7 @@ require_relative 'link_extractor'
 # understand, test, and modify independently.
 #
 # Expects the including class to provide:
-# - @wm, @state, @cmd_buffer, @xml_escapes
+# - @wm, @state, @cmd_buffer, @xml_escapes, @event_bus
 # - @line_colors, @open_monsterbold, @open_preset, @open_style,
 #   @open_color, @open_link
 # - @current_stream, @combat_next_line, @need_update, @need_room_render
@@ -121,6 +121,10 @@ module TagHandlers
   # always correct because the buffer only contains non-tag text.
   # Handlers that need to emit accumulated text before changing state
   # call flush_text_buffer.
+  #
+  # UI updates are emitted via @event_bus rather than calling window
+  # methods directly. This decouples parsing from rendering and enables
+  # testing without curses.
 
   # Explicitly ignored game protocol tags (dialog data, labels, etc.).
   def handle_ignored_tag(_xml, _text_buffer); end
@@ -139,20 +143,9 @@ module TagHandlers
     if @state.prompt_text != new_prompt_text
       @state.need_prompt = false
       @state.prompt_text = new_prompt_text
-      add_prompt(@wm.stream[MAIN_STREAM], new_prompt_text)
-      if (prompt_window = @wm.indicator['prompt'])
-        init_prompt_height = fix_layout_number(prompt_window.layout[0])
-        init_prompt_width = fix_layout_number(prompt_window.layout[1])
-        new_prompt_width = new_prompt_text.length
-        prompt_window.resize(init_prompt_height, new_prompt_width)
-        prompt_width_diff = new_prompt_width - init_prompt_width
-        @wm.command_window.resize(fix_layout_number(@wm.command_window_layout[0]),
-                                  fix_layout_number(@wm.command_window_layout[1]) - prompt_width_diff)
-        ctop = fix_layout_number(@wm.command_window_layout[2])
-        cleft = fix_layout_number(@wm.command_window_layout[3]) + prompt_width_diff
-        @wm.command_window.move(ctop, cleft)
-        prompt_window.label = new_prompt_text
-      end
+      @event_bus.emit(:add_prompt, stream: MAIN_STREAM, text: new_prompt_text)
+      @event_bus.emit(:prompt_changed, text: new_prompt_text)
+      @need_update = true
     else
       @state.need_prompt = true
     end
@@ -161,20 +154,18 @@ module TagHandlers
   # Handle <spell>name</spell> paired tag.
   def handle_spell_tag(xml, _text_buffer)
     return unless (m = xml.match(%r{^<spell(?:>|\s.*?>)(?<spell>.*?)</spell>$}))
-    return unless (window = @wm.indicator['spell'])
 
-    window.label = m[:spell]
-    window.update(m[:spell] == 'None' ? 0 : 1)
+    @event_bus.emit(:indicator_update, id: 'spell', label: m[:spell],
+                                       value: m[:spell] == 'None' ? 0 : 1)
     @need_update = true
   end
 
   # Handle <right>item</right> or <left>item</left> paired tag.
   def handle_hand_tag(xml, _text_buffer)
     return unless (m = xml.match(%r{^<(?<hand>right|left)(?:>|\s.*?>)(?<item>.*?\S*?)</\k<hand>>}))
-    return unless (window = @wm.indicator[m[:hand]])
 
-    window.label = m[:item]
-    window.update(m[:item] == 'Empty' ? 0 : 1)
+    @event_bus.emit(:indicator_update, id: m[:hand], label: m[:item],
+                                       value: m[:item] == 'Empty' ? 0 : 1)
     @need_update = true
   end
 
@@ -183,10 +174,8 @@ module TagHandlers
   # on every input loop iteration (~100ms).
   def handle_roundtime_tag(xml, _text_buffer)
     return unless (m = xml.match(/^<roundTime value=(?<q>'|")(?<value>[0-9]+)\k<q>/))
-    return unless (window = @wm.countdown['roundtime'])
 
-    window.end_time = m[:value].to_i
-    window.update
+    @event_bus.emit(:countdown_update, id: 'roundtime', end_time: m[:value].to_i)
     @need_update = true
   end
 
@@ -195,50 +184,40 @@ module TagHandlers
   # on every input loop iteration (~100ms).
   def handle_casttime_tag(xml, _text_buffer)
     return unless (m = xml.match(/^<castTime value=(?<q>'|")(?<value>[0-9]+)\k<q>/))
-    return unless (window = @wm.countdown['roundtime'])
 
-    window.secondary_end_time = m[:value].to_i
-    window.update
+    @event_bus.emit(:countdown_update, id: 'roundtime', secondary_end_time: m[:value].to_i)
     @need_update = true
   end
 
   # Handle <compass>...<dir value="n"/>...</compass> paired tag.
   def handle_compass_tag(xml, _text_buffer)
     current_dirs = xml.scan(/<dir value="(.*?)"/).flatten
-    %w[up down out n ne e se s sw w nw].each do |dir|
-      next unless (window = @wm.indicator["compass:#{dir}"])
-
-      @need_update = true if window.update(current_dirs.include?(dir))
-    end
+    @event_bus.emit(:compass_update, dirs: current_dirs)
+    @need_update = true
   end
 
   # Handle <progressBar .../> tags for vitals, stance, encumbrance, mind.
   # Dispatches to game-specific sub-patterns based on id and text format.
   def handle_progress_bar_tag(xml, _text_buffer)
     if (m = xml.match(/^<progressBar id='encumlevel' value='(?<value>[0-9]+)' text='(?<text>.*?)'/))
-      if (window = @wm.progress['encumbrance'])
-        value = m[:text] == 'Overloaded' ? 110 : m[:value].to_i
-        @need_update = true if window.update(value, 110)
-      end
+      value = m[:text] == 'Overloaded' ? 110 : m[:value].to_i
+      @event_bus.emit(:progress_update, id: 'encumbrance', value: value, max: 110)
+      @need_update = true
     elsif (m = xml.match(/^<progressBar id='pbarStance' value='(?<value>[0-9]+)'/))
-      if (window = @wm.progress['stance']) && window.update(m[:value].to_i, 100)
-        @need_update = true
-      end
+      @event_bus.emit(:progress_update, id: 'stance', value: m[:value].to_i, max: 100)
+      @need_update = true
     elsif (m = xml.match(/^<progressBar id='mindState' value='(?<value>.*?)' text='(?<text>.*?)'/))
-      if (window = @wm.progress['mind'])
-        value = m[:text] == 'saturated' ? 110 : m[:value].to_i
-        @need_update = true if window.update(value, 110)
-      end
+      value = m[:text] == 'saturated' ? 110 : m[:value].to_i
+      @event_bus.emit(:progress_update, id: 'mind', value: value, max: 110)
+      @need_update = true
     elsif (m = xml.match(/^<progressBar id='(?<id>.*?)' value='[0-9]+' text='.*?\s+(?<cur>-?[0-9]+)\/(?<max>[0-9]+)'/))
       # GemStone vitals: text contains current/max (e.g., "health 456/456")
-      if (window = @wm.progress[m[:id]]) && window.update(m[:cur].to_i, m[:max].to_i)
-        @need_update = true
-      end
+      @event_bus.emit(:progress_update, id: m[:id], value: m[:cur].to_i, max: m[:max].to_i)
+      @need_update = true
     elsif (m = xml.match(/^<progressBar id='(?<id>health|mana|spirit|stamina|concentration)' value='(?<value>[0-9]+)' text='(?:health|mana|spirit|fatigue|concentration|inner fire) [0-9]+\%'/))
       # DragonRealms vitals: text contains percentage (e.g., "health 75%")
-      if (window = @wm.progress[m[:id]]) && window.update(m[:value].to_i, 100)
-        @need_update = true
-      end
+      @event_bus.emit(:progress_update, id: m[:id], value: m[:value].to_i, max: 100)
+      @need_update = true
     end
   end
 
@@ -247,15 +226,15 @@ module TagHandlers
     return unless (m = xml.match(/^<arbProgress id='(?<id>[a-zA-Z0-9]+)' max='(?<max>\d+)' current='(?<cur>\d+)'(?:\s+label='(?<label>.+?)')?(?:\s+colors='(?<colors>\S+?)')?/))
 
     current = [m[:cur].to_i, m[:max].to_i].min
-    return unless (window = @wm.progress[m[:id]])
-
-    window.label = m[:label] if m[:label]
+    data = { id: m[:id], value: current, max: m[:max].to_i }
+    data[:label] = m[:label] if m[:label]
     if m[:colors]
       bg, fg = m[:colors].split(',')
-      window.bg = [bg] if bg
-      window.fg = [fg] if fg
+      data[:bg] = [bg] if bg
+      data[:fg] = [fg] if fg
     end
-    @need_update = true if window.update(current, m[:max].to_i)
+    @event_bus.emit(:progress_update, **data)
+    @need_update = true
   end
 
   # Handle <pushBold/> or <b> tag. Opens a monster bold color region.
@@ -366,14 +345,14 @@ module TagHandlers
     new_stream = m[:id]
     if (exp_match = new_stream.match(/^exp (?<skill>\w+\s?\w+?)/))
       @current_stream = 'exp'
-      @wm.stream['exp']&.set_current(exp_match[:skill])
+      @event_bus.emit(:exp_set_current, skill: exp_match[:skill])
     else
       @current_stream = new_stream
       if new_stream == 'room' && (sub_match = xml.match(/subtitle=(?<q>"|')(?<sub>.*?)\k<q>/))
         title = parse_room_subtitle(sub_match[:sub])
         unless title.empty?
           @state.room_title = title
-          @wm.room['room']&.update_title(title)
+          @event_bus.emit(:room_title, text: title)
         end
       end
     end
@@ -385,13 +364,13 @@ module TagHandlers
   # Flushes accumulated text and clears the current stream.
   def handle_stream_close(_xml, text_buffer)
     flush_text_buffer(text_buffer)
-    @wm.stream['exp']&.delete_skill if @current_stream == 'exp'
+    @event_bus.emit(:exp_delete_skill) if @current_stream == 'exp'
     @current_stream = nil
   end
 
   # Handle <clearStream id="percWindow"/> tag.
   def handle_clear_stream(xml, _text_buffer)
-    @wm.stream['percWindow']&.clear_spells if xml.match?(/id=["']percWindow["']/)
+    @event_bus.emit(:clear_spells) if xml.match?(/id=["']percWindow["']/)
   end
 
   # Handle <a ...> or <d ...> link opening tag.
@@ -419,13 +398,11 @@ module TagHandlers
   def handle_indicator_tag(xml, _text_buffer)
     return unless (m = xml.match(/^<indicator id=(?<q1>'|")Icon(?<icon>[A-Z]+)\k<q1> visible=(?<q2>'|")(?<vis>[yn])\k<q2>/))
 
-    if (window = @wm.countdown[m[:icon].downcase])
-      window.active = (m[:vis] == 'y')
-      @need_update = true if window.update
-    end
-    if (window = @wm.indicator[m[:icon].downcase]) && window.update(m[:vis] == 'y')
-      @need_update = true
-    end
+    icon = m[:icon].downcase
+    active = m[:vis] == 'y'
+    @event_bus.emit(:countdown_active, id: icon, active: active)
+    @event_bus.emit(:indicator_update, id: icon, value: active)
+    @need_update = true
   end
 
   # Handle <image id='...' name='...'/> body part/injury tag.
@@ -433,19 +410,13 @@ module TagHandlers
     return unless (m = xml.match(/^<image id=(?<q1>'|")(?<id>back|leftHand|rightHand|head|rightArm|abdomen|leftEye|leftArm|chest|rightLeg|neck|leftLeg|nsys|rightEye)\k<q1> name=(?<q2>'|")(?<name>.*?)\k<q2>/))
 
     if m[:id] == 'nsys'
-      if (window = @wm.indicator['nsys'])
-        if (rank = m[:name].slice(/[0-9]/))
-          @need_update = true if window.update(rank.to_i)
-        elsif window.update(0)
-          @need_update = true
-        end
-      end
+      rank = m[:name].slice(/[0-9]/)
+      @event_bus.emit(:indicator_update, id: 'nsys', value: rank ? rank.to_i : 0)
     else
       fix_value = { 'Injury1' => 1, 'Injury2' => 2, 'Injury3' => 3, 'Scar1' => 4, 'Scar2' => 5, 'Scar3' => 6 }
-      if (window = @wm.indicator[m[:id]]) && window.update(fix_value[m[:name]] || 0)
-        @need_update = true
-      end
+      @event_bus.emit(:indicator_update, id: m[:id], value: fix_value[m[:name]] || 0)
     end
+    @need_update = true
   end
 
   # Handle <LaunchURL src="..."/> tag.
@@ -453,9 +424,8 @@ module TagHandlers
     return unless (m = xml.match(/^<LaunchURL src="(?<src>[^"]+)"/))
 
     url = "https://www.play.net#{m[:src]}"
-    @wm.stream[MAIN_STREAM]&.add_string(' *'.dup)
-    @wm.stream[MAIN_STREAM]&.add_string(" * LaunchURL: #{url}")
-    @wm.stream[MAIN_STREAM]&.add_string(' *'.dup)
+    @event_bus.emit(:launch_url, url: url)
+    @need_update = true
   end
 
   # Handle <streamWindow id='room' subtitle='...'/> tag.
@@ -466,11 +436,8 @@ module TagHandlers
     return if room.empty?
 
     @state.room_title = room
-    if (window = @wm.indicator['room'])
-      window.label = room
-      window.update(1)
-      @need_update = true
-    end
-    @wm.room['room']&.update_title(room)
+    @event_bus.emit(:indicator_update, id: 'room', label: room, value: 1)
+    @event_bus.emit(:room_title, text: room)
+    @need_update = true
   end
 end

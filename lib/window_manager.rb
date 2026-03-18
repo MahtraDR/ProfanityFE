@@ -95,6 +95,182 @@ class WindowManager
   # @note Returns the live hash, not a copy. Mutations affect room display.
   attr_reader :room
 
+  # Subscribe to events from the parser's EventBus.
+  #
+  # Bridges typed events to the appropriate window objects: routes text
+  # to stream windows, updates indicator/progress/countdown displays,
+  # dispatches room data to the RoomWindow, and handles prompt resize.
+  #
+  # @param event_bus [EventBus] the event bus to subscribe to
+  # @return [void]
+  def subscribe_to_events(event_bus)
+    # ---- Text display events ----
+
+    event_bus.on(:stream_text) do |data|
+      window = @stream[data[:stream]]
+      next unless window
+
+      window.route_string(data[:text], data[:colors], data[:stream], indent: data[:indent])
+    end
+
+    event_bus.on(:add_prompt) do |data|
+      window = @stream[data[:stream] || MAIN_STREAM]
+      add_prompt(window, data[:text], data[:command]) if window
+    end
+
+    # ---- Indicator events ----
+
+    event_bus.on(:indicator_update) do |data|
+      window = @indicator[data[:id]]
+      next unless window
+
+      window.label = data[:label] if data.key?(:label)
+      window.label_colors = data[:label_colors] if data.key?(:label_colors)
+      window.update(data[:value]) if data.key?(:value)
+    end
+
+    event_bus.on(:compass_update) do |data|
+      dirs = data[:dirs]
+      %w[up down out n ne e se s sw w nw].each do |dir|
+        window = @indicator["compass:#{dir}"]
+        window&.update(dirs.include?(dir))
+      end
+    end
+
+    # ---- Progress bar events ----
+
+    event_bus.on(:progress_update) do |data|
+      window = @progress[data[:id]]
+      next unless window
+
+      window.label = data[:label] if data.key?(:label)
+      window.fg = data[:fg] if data.key?(:fg)
+      window.bg = data[:bg] if data.key?(:bg)
+      window.update(data[:value], data[:max])
+    end
+
+    # ---- Countdown events ----
+
+    event_bus.on(:countdown_update) do |data|
+      window = @countdown[data[:id]]
+      next unless window
+
+      window.end_time = data[:end_time] if data.key?(:end_time)
+      window.secondary_end_time = data[:secondary_end_time] if data.key?(:secondary_end_time)
+      window.update
+    end
+
+    event_bus.on(:countdown_active) do |data|
+      window = @countdown[data[:id]]
+      next unless window
+
+      window.active = data[:active]
+      window.update
+    end
+
+    event_bus.on(:stun) do |data|
+      window = @countdown['stunned']
+      next unless window
+
+      window.end_time = Time.now.to_f - $server_time_offset.to_f + data[:seconds].to_f
+      window.update
+    end
+
+    # ---- Prompt resize ----
+
+    event_bus.on(:prompt_changed) do |data|
+      text = data[:text]
+      prompt_window = @indicator['prompt']
+      next unless prompt_window
+
+      init_h = fix_layout_number(prompt_window.layout[0])
+      init_w = fix_layout_number(prompt_window.layout[1])
+      new_w = text.length
+      prompt_window.resize(init_h, new_w)
+      diff = new_w - init_w
+      if @command_window
+        @command_window.resize(fix_layout_number(@command_window_layout[0]),
+                               fix_layout_number(@command_window_layout[1]) - diff)
+        ctop = fix_layout_number(@command_window_layout[2])
+        cleft = fix_layout_number(@command_window_layout[3]) + diff
+        @command_window.move(ctop, cleft)
+      end
+      prompt_window.label = text
+    end
+
+    # ---- Room events ----
+
+    event_bus.on(:room_title) do |data|
+      @room['room']&.update_title(data[:text])
+    end
+
+    event_bus.on(:room_desc) do |data|
+      @room['room']&.update_desc(data[:text])
+    end
+
+    event_bus.on(:room_objects) do |data|
+      @room['room']&.update_objects(data[:text])
+    end
+
+    event_bus.on(:room_players) do |data|
+      @room['room']&.update_players(data[:text])
+    end
+
+    event_bus.on(:room_exits) do |data|
+      @room['room']&.update_exits(data[:text])
+    end
+
+    event_bus.on(:room_number) do |data|
+      @room['room']&.update_room_number(data[:text])
+    end
+
+    event_bus.on(:room_stringprocs) do |data|
+      @room['room']&.update_stringprocs(data[:text])
+    end
+
+    event_bus.on(:room_supplemental_clear) do |_data|
+      @room['room']&.clear_supplemental
+    end
+
+    event_bus.on(:room_render) do |_data|
+      @room['room']&.render
+    end
+
+    # ---- Stream management events ----
+
+    event_bus.on(:exp_set_current) do |data|
+      @stream['exp']&.set_current(data[:skill])
+    end
+
+    event_bus.on(:exp_delete_skill) do |_data|
+      @stream['exp']&.delete_skill
+    end
+
+    event_bus.on(:clear_spells) do |_data|
+      @stream['percWindow']&.clear_spells
+    end
+
+    # ---- Special events ----
+
+    event_bus.on(:launch_url) do |data|
+      window = @stream[MAIN_STREAM]
+      next unless window
+
+      window.add_string(' *'.dup)
+      window.add_string(" * LaunchURL: #{data[:url]}")
+      window.add_string(' *'.dup)
+    end
+
+    event_bus.on(:disconnect) do |_data|
+      window = @stream[MAIN_STREAM]
+      next unless window
+
+      ['* ', '* Connection closed', '* Press any key to exit...', '* '].each do |msg|
+        window.add_string(msg, [{ start: 0, end: msg.length, fg: FEEDBACK_COLOR, bg: nil, ul: nil }])
+      end
+    end
+  end
+
   # Evaluate a layout dimension string to an integer, substituting
   # Curses terminal dimensions for the tokens "lines" and "cols".
   #

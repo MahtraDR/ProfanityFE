@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative '../../lib/event_bus'
 require_relative '../../lib/familiar_notifier'
 
 # Minimal host class that includes FamiliarNotifier
@@ -7,23 +8,25 @@ class FamiliarNotifierHost
   include FamiliarNotifier
 
   attr_accessor :line_colors, :need_update
-  attr_reader :wm
+  attr_reader :event_bus
 
-  def initialize(familiar_window: nil)
-    @wm = Struct.new(:stream).new({ 'familiar' => familiar_window })
+  def initialize(event_bus:)
+    @event_bus = event_bus
     @line_colors = []
     @need_update = false
   end
 end
 
 RSpec.describe FamiliarNotifier do
-  let(:familiar_window) do
-    spy_window = Object.new
-    def spy_window.calls = @calls ||= []
-    def spy_window.add_string(text, colors = []) = calls << { text: text, colors: colors }
-    spy_window
+  let(:event_bus) { EventBus.new }
+  let(:host) { FamiliarNotifierHost.new(event_bus: event_bus) }
+
+  # Helper to capture stream_text events
+  def collect_stream_events
+    events = []
+    event_bus.on(:stream_text) { |data| events << data }
+    events
   end
-  let(:host) { FamiliarNotifierHost.new(familiar_window: familiar_window) }
 
   describe '#extract_notification (private)' do
     subject(:extract) { host.send(:extract_notification, text) }
@@ -142,9 +145,11 @@ RSpec.describe FamiliarNotifier do
   end
 
   describe '#check_familiar_notification' do
-    it 'sends notification to familiar window' do
+    it 'emits stream_text event for familiar stream' do
+      events = collect_stream_events
       host.check_familiar_notification('You sense nothing wrong with Mahtra')
-      expect(familiar_window.calls.last[:text]).to eq 'Mahtra is all healthy.'
+      expect(events.last[:stream]).to eq 'familiar'
+      expect(events.last[:text]).to eq 'Mahtra is all healthy.'
     end
 
     it 'sets need_update when notification sent' do
@@ -152,9 +157,10 @@ RSpec.describe FamiliarNotifier do
       expect(host.need_update).to be true
     end
 
-    it 'does not send for non-matching text' do
+    it 'does not emit for non-matching text' do
+      events = collect_stream_events
       host.check_familiar_notification('Hello world')
-      expect(familiar_window.calls).to be_empty
+      expect(events).to be_empty
     end
 
     it 'does not set need_update for non-matching text' do
@@ -164,30 +170,31 @@ RSpec.describe FamiliarNotifier do
 
     it 'applies monsterbold preset colors when available' do
       PRESET['monsterbold'] = ['ff0000', '000000']
+      events = collect_stream_events
       host.check_familiar_notification('You sense nothing wrong with Mahtra')
-      colors = familiar_window.calls.last[:colors]
+      colors = events.last[:colors]
       expect(colors.first[:fg]).to eq 'ff0000'
       expect(colors.first[:bg]).to eq '000000'
       expect(colors.first[:start]).to eq 0
     end
 
-    it 'sends without colors when monsterbold preset is not defined' do
+    it 'emits without colors when monsterbold preset is not defined' do
       PRESET.delete('monsterbold')
+      events = collect_stream_events
       host.check_familiar_notification('You sense nothing wrong with Mahtra')
-      expect(familiar_window.calls.last[:text]).to eq 'Mahtra is all healthy.'
+      expect(events.last[:text]).to eq 'Mahtra is all healthy.'
+      expect(events.last[:colors]).to be_empty
     end
 
-    # Adversarial
-    it 'does not crash when familiar window is nil' do
-      host_no_window = FamiliarNotifierHost.new(familiar_window: nil)
-      # extract_notification returns non-nil, but window is nil
-      expect { host_no_window.check_familiar_notification('You sense nothing wrong with Mahtra') }.not_to raise_error
+    it 'does not crash when no subscribers are listening' do
+      # No subscriber on the event bus — emit should be a no-op
+      expect { host.check_familiar_notification('You sense nothing wrong with Mahtra') }.not_to raise_error
     end
 
     it 'resets line_colors for each notification' do
       host.line_colors = [{ start: 0, end: 5, fg: 'old' }]
       host.check_familiar_notification('You sense nothing wrong with Mahtra')
-      # line_colors should have been replaced, not appended to
+      # line_colors should have been cleared
       expect(host.line_colors).not_to include(a_hash_including(fg: 'old'))
     end
   end

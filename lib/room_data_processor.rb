@@ -12,8 +12,13 @@ from game server XML component streams and inline text patterns.
 # from multiple XML component lines and inline text patterns, updating the
 # RoomWindow atomically when all components have arrived.
 #
+# UI updates are emitted via @event_bus rather than calling window methods
+# directly. The @wm.room['room'] reference is retained only as a read-only
+# check for whether a RoomWindow is configured in the current layout.
+#
 # Expects the including class to provide:
 # - @wm           [WindowManager]
+# - @event_bus    [EventBus]
 # - @room_capture_mode, @room_pending_title, @room_pending_title_colors,
 #   @room_pending_desc, @room_pending_desc_colors, @room_pending_objects,
 #   @room_pending_objects_colors, @room_pending_players, @room_pending_exits,
@@ -109,11 +114,11 @@ module RoomDataProcessor
 
     # Detect "Room Number:" or "StringProcs:" lines (come after exits)
     if text =~ /^Room Number:\s*\d+/
-      @wm.room['room'].update_room_number(text.strip)
+      @event_bus.emit(:room_number, text: text.strip)
       room_data_captured = true
       @need_update = true
     elsif text =~ /^StringProcs:/
-      @wm.room['room'].update_stringprocs(text.strip)
+      @event_bus.emit(:room_stringprocs, text: text.strip)
       room_data_captured = true
       @need_update = true
     end
@@ -135,34 +140,32 @@ module RoomDataProcessor
   def process_room_stream(text)
     return nil unless @current_stream =~ /^room(\s|$)/ && @wm.room['room']
 
-    window = @wm.room['room']
-
     case @current_stream
     when 'room', 'room title'
       raw = extract_component_content(@current_raw_line, @current_stream) if @current_raw_line
       @room_pending_title = strip_xml_tags(raw || text).strip
-      window.update_title(@room_pending_title)
+      @event_bus.emit(:room_title, text: @room_pending_title)
     when 'room desc', 'roomDesc'
       # Preserve raw XML for link processing in room window
       raw = extract_component_content(@current_raw_line, @current_stream) if @current_raw_line
       @room_pending_desc = (raw || text).strip
-      window.update_desc(@room_pending_desc)
+      @event_bus.emit(:room_desc, text: @room_pending_desc)
     when 'room objs'
       # Preserve raw XML — render_objects_section strips <pushBold/>, <a>, <d> etc.
       raw = extract_component_content(@current_raw_line, 'room objs') if @current_raw_line
       @room_pending_objects = (raw || text).strip
-      window.update_objects(@room_pending_objects)
+      @event_bus.emit(:room_objects, text: @room_pending_objects)
     when 'room players'
       # Preserve raw XML for link processing in room window (GS has <a> tags around names)
       raw = extract_component_content(@current_raw_line, 'room players') if @current_raw_line
       @room_pending_players = (raw || text).strip
-      window.update_players(@room_pending_players)
+      @event_bus.emit(:room_players, text: @room_pending_players)
       # Also update the indicator if present (fall through below)
     when 'room exits'
       # Preserve raw XML — render_exits_section strips <d>, <a>, <compass> etc.
       raw = extract_component_content(@current_raw_line, 'room exits') if @current_raw_line
       @room_pending_exits = (raw || text).strip
-      window.update_exits(@room_pending_exits)
+      @event_bus.emit(:room_exits, text: @room_pending_exits)
       # Clear pending data
       @room_pending_title = nil
       @room_pending_title_colors = nil
@@ -219,16 +222,15 @@ module RoomDataProcessor
   #
   # @return [void]
   def commit_room_data_batch
-    room_window = @wm.room['room']
-    return unless room_window
+    return unless @wm.room['room']
 
     # Only update if we have pending data (avoid double-updates clearing data)
     if @room_pending_title || @room_pending_desc || @room_pending_objects || @room_pending_players
-      room_window.update_title(@room_pending_title || '')
-      room_window.update_desc(@room_pending_desc || '')
-      room_window.update_objects(@room_pending_objects || '')
-      room_window.update_players(@room_pending_players || '')
-      room_window.clear_supplemental
+      @event_bus.emit(:room_title, text: @room_pending_title || '')
+      @event_bus.emit(:room_desc, text: @room_pending_desc || '')
+      @event_bus.emit(:room_objects, text: @room_pending_objects || '')
+      @event_bus.emit(:room_players, text: @room_pending_players || '')
+      @event_bus.emit(:room_supplemental_clear)
 
       # Also update the room players indicator (fallback for games that don't use streams)
       update_room_players_indicator(@room_pending_players)
@@ -245,7 +247,7 @@ module RoomDataProcessor
     end
 
     # Always update exits (even on subsequent exit lines)
-    room_window.update_exits(@room_pending_exits || '')
+    @event_bus.emit(:room_exits, text: @room_pending_exits || '')
     @room_pending_exits = nil
     @need_update = true
   end
@@ -255,26 +257,18 @@ module RoomDataProcessor
   # @param players_text [String, nil] raw "Also here:" text or nil
   # @return [void]
   def update_room_players_indicator(players_text)
-    window = @wm.indicator['room players']
-    return unless window
-
     if players_text
       names = parse_player_names(players_text)
       if names.any?
         names_text = names.join(', ')
-        window.label_colors = HighlightProcessor.apply_highlights(names_text, [])
-        window.label = names_text
-        window.update(true)
+        label_colors = HighlightProcessor.apply_highlights(names_text, [])
+        @event_bus.emit(:indicator_update, id: 'room players', label: names_text, label_colors: label_colors, value: true)
       else
-        window.label_colors = nil
-        window.label = ' '
-        window.update(false)
+        @event_bus.emit(:indicator_update, id: 'room players', label: ' ', label_colors: nil, value: false)
       end
     else
       # No players in room - clear the indicator
-      window.label_colors = nil
-      window.label = ' '
-      window.update(false)
+      @event_bus.emit(:indicator_update, id: 'room players', label: ' ', label_colors: nil, value: false)
     end
   end
 end

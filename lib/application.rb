@@ -444,11 +444,15 @@ class Application
   end
 
   def start_server_thread
+    @event_bus = EventBus.new
+    @window_mgr.subscribe_to_events(@event_bus)
+
     processor = GameTextProcessor.new(
       window_mgr: @window_mgr,
       shared_state: @shared_state,
       cmd_buffer: @cmd_buffer,
-      xml_escapes: @xml_escapes
+      xml_escapes: @xml_escapes,
+      event_bus: @event_bus
     )
     Thread.new { processor.run(@server) }
   end

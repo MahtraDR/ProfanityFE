@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative '../../lib/event_bus'
 require_relative '../../lib/xml_tokenizer'
 require_relative '../../lib/tag_handlers'
 
@@ -12,11 +13,12 @@ class TagHandlerHost
                 :open_color, :open_link, :current_stream, :combat_next_line,
                 :need_update, :need_room_render, :room_capture_mode
 
-  attr_reader :flushed_texts, :wm, :state, :cmd_buffer
+  attr_reader :flushed_texts, :wm, :state, :cmd_buffer, :event_bus
 
-  def initialize(wm:, state:)
+  def initialize(wm:, state:, event_bus:)
     @wm = wm
     @state = state
+    @event_bus = event_bus
     @cmd_buffer = Struct.new(:window).new(nil)
     @xml_escapes = { '&lt;' => '<', '&gt;' => '>', '&quot;' => '"', '&apos;' => "'", '&amp;' => '&' }
     @line_colors = []
@@ -98,6 +100,7 @@ end
 
 RSpec.describe TagHandlers do
   let(:main_window) { SpyWindow.new }
+  let(:event_bus) { EventBus.new }
   let(:wm) do
     Struct.new(:stream, :indicator, :progress, :countdown, :room,
                :command_window, :command_window_layout).new(
@@ -110,7 +113,16 @@ RSpec.describe TagHandlers do
       def update_terminal_title = nil
     end.new(false, '>', true, '', false, false)
   end
-  let(:host) { TagHandlerHost.new(wm: wm, state: state) }
+  let(:host) { TagHandlerHost.new(wm: wm, state: state, event_bus: event_bus) }
+
+  # Helper to collect events of a given type
+  def collect_events(*types)
+    events = []
+    types.each do |type|
+      event_bus.on(type) { |data| events << { type: type, **data } }
+    end
+    events
+  end
 
   # ---- dispatch_tag ----
 
@@ -197,62 +209,77 @@ RSpec.describe TagHandlers do
       host.dispatch_tag('<prompt time="1679000000">H&gt;</prompt>', String.new)
       expect(state.need_prompt).to be true
     end
+
+    it 'emits :add_prompt and :prompt_changed events on new prompt' do
+      events = collect_events(:add_prompt, :prompt_changed)
+      state.prompt_text = '>'
+      host.dispatch_tag('<prompt time="1679000000">H&gt;</prompt>', String.new)
+
+      prompt_event = events.find { |e| e[:type] == :add_prompt }
+      expect(prompt_event).to include(stream: 'main', text: 'H>')
+
+      changed_event = events.find { |e| e[:type] == :prompt_changed }
+      expect(changed_event).to include(text: 'H>')
+    end
   end
 
   # ---- Spell handler ----
 
   describe '#handle_spell_tag' do
-    it 'updates the spell indicator label' do
-      ind = SpyIndicator.new
-      wm.indicator['spell'] = ind
+    it 'emits indicator_update for spell' do
+      events = collect_events(:indicator_update)
       host.dispatch_tag('<spell>Fire Ball</spell>', String.new)
-      expect(ind.label).to eq 'Fire Ball'
+      expect(events.last).to include(id: 'spell', label: 'Fire Ball', value: 1)
     end
 
-    it 'updates with 0 when spell is None' do
-      ind = SpyIndicator.new
-      wm.indicator['spell'] = ind
+    it 'emits value 0 when spell is None' do
+      events = collect_events(:indicator_update)
       host.dispatch_tag('<spell>None</spell>', String.new)
-      expect(ind.updates.flatten).to include(0)
+      expect(events.last).to include(id: 'spell', value: 0)
     end
   end
 
   # ---- Hand handler ----
 
   describe '#handle_hand_tag' do
-    it 'updates right hand indicator' do
-      ind = SpyIndicator.new
-      wm.indicator['right'] = ind
+    it 'emits indicator_update for right hand' do
+      events = collect_events(:indicator_update)
       host.dispatch_tag('<right>a steel sword</right>', String.new)
-      expect(ind.label).to eq 'a steel sword'
-      expect(ind.updates.flatten).to include(1)
+      expect(events.last).to include(id: 'right', label: 'a steel sword', value: 1)
     end
 
-    it 'updates left hand as Empty with 0' do
-      ind = SpyIndicator.new
-      wm.indicator['left'] = ind
+    it 'emits value 0 for Empty hand' do
+      events = collect_events(:indicator_update)
       host.dispatch_tag('<left>Empty</left>', String.new)
-      expect(ind.label).to eq 'Empty'
-      expect(ind.updates.flatten).to include(0)
+      expect(events.last).to include(id: 'left', label: 'Empty', value: 0)
     end
   end
 
   # ---- Compass handler ----
 
   describe '#handle_compass_tag' do
-    it 'updates direction indicators' do
-      n_ind = SpyIndicator.new
-      e_ind = SpyIndicator.new
-      s_ind = SpyIndicator.new
-      wm.indicator['compass:n'] = n_ind
-      wm.indicator['compass:e'] = e_ind
-      wm.indicator['compass:s'] = s_ind
-
+    it 'emits compass_update with active directions' do
+      events = collect_events(:compass_update)
       host.dispatch_tag('<compass><dir value="n"/><dir value="e"/></compass>', String.new)
+      expect(events.last[:dirs]).to contain_exactly('n', 'e')
+    end
+  end
 
-      expect(n_ind.updates.last).to eq [true]
-      expect(e_ind.updates.last).to eq [true]
-      expect(s_ind.updates.last).to eq [false]
+  # ---- Roundtime/Casttime handlers ----
+
+  describe '#handle_roundtime_tag' do
+    it 'emits countdown_update with end_time' do
+      events = collect_events(:countdown_update)
+      host.dispatch_tag("<roundTime value='1679000010'/>", String.new)
+      expect(events.last).to include(id: 'roundtime', end_time: 1_679_000_010)
+    end
+  end
+
+  describe '#handle_casttime_tag' do
+    it 'emits countdown_update with secondary_end_time' do
+      events = collect_events(:countdown_update)
+      host.dispatch_tag("<castTime value='1679000020'/>", String.new)
+      expect(events.last).to include(id: 'roundtime', secondary_end_time: 1_679_000_020)
     end
   end
 
@@ -274,8 +301,17 @@ RSpec.describe TagHandlers do
     end
 
     it 'handles exp stream with skill name' do
+      events = collect_events(:exp_set_current)
       host.dispatch_tag('<pushStream id="exp Athletics" />', String.new)
       expect(host.current_stream).to eq 'exp'
+      expect(events.last).to include(skill: 'Athletics')
+    end
+
+    it 'emits room_title for room stream with subtitle' do
+      events = collect_events(:room_title)
+      host.dispatch_tag(%q{<component id="room" subtitle=" - [Town Square]">}, String.new)
+      expect(events.last).to include(text: 'Town Square')
+      expect(state.room_title).to eq 'Town Square'
     end
   end
 
@@ -287,6 +323,13 @@ RSpec.describe TagHandlers do
 
       expect(host.flushed_texts.last[:text]).to eq 'combat text'
       expect(host.current_stream).to be_nil
+    end
+
+    it 'emits exp_delete_skill when closing exp stream' do
+      events = collect_events(:exp_delete_skill)
+      host.current_stream = 'exp'
+      host.dispatch_tag('<popStream/>', String.new)
+      expect(events.length).to eq 1
     end
   end
 
@@ -359,8 +402,6 @@ RSpec.describe TagHandlers do
       host.dispatch_tag('<style id=""/>', buf)
 
       expect(host.open_style).to be_nil
-      # The flush captures the style color in flushed_texts (handle_game_text
-      # extends open_style to end of text, then clears line_colors)
       flushed = host.flushed_texts.find { |f| f[:text] == 'Town Square' }
       expect(flushed).not_to be_nil
     end
@@ -415,18 +456,42 @@ RSpec.describe TagHandlers do
   # ---- Indicator handler ----
 
   describe '#handle_indicator_tag' do
-    it 'updates indicator window for visible icon' do
-      ind = SpyIndicator.new
-      wm.indicator['stunned'] = ind
+    it 'emits indicator_update for visible icon' do
+      events = collect_events(:indicator_update)
       host.dispatch_tag("<indicator id='IconSTUNNED' visible='y'/>", String.new)
-      expect(ind.updates.flatten).to include(true)
+      expect(events).to include(a_hash_including(id: 'stunned', value: true))
     end
 
-    it 'updates countdown window active state' do
-      cd = SpyIndicator.new
-      wm.countdown['stunned'] = cd
+    it 'emits countdown_active event' do
+      events = collect_events(:countdown_active)
       host.dispatch_tag("<indicator id='IconSTUNNED' visible='y'/>", String.new)
-      expect(cd.active).to be true
+      expect(events.last).to include(id: 'stunned', active: true)
+    end
+  end
+
+  # ---- Image handler ----
+
+  describe '#handle_image_tag' do
+    it 'emits indicator_update for nsys with rank' do
+      events = collect_events(:indicator_update)
+      host.dispatch_tag("<image id='nsys' name='nsys3'/>", String.new)
+      expect(events.last).to include(id: 'nsys', value: 3)
+    end
+
+    it 'emits indicator_update for body part injury' do
+      events = collect_events(:indicator_update)
+      host.dispatch_tag("<image id='chest' name='Injury2'/>", String.new)
+      expect(events.last).to include(id: 'chest', value: 2)
+    end
+  end
+
+  # ---- Launch URL handler ----
+
+  describe '#handle_launch_url' do
+    it 'emits launch_url event' do
+      events = collect_events(:launch_url)
+      host.dispatch_tag('<LaunchURL src="/path/to/page"/>', String.new)
+      expect(events.last).to include(url: 'https://www.play.net/path/to/page')
     end
   end
 
@@ -434,13 +499,33 @@ RSpec.describe TagHandlers do
 
   describe '#handle_stream_window' do
     it 'updates room title from subtitle attribute' do
+      events = collect_events(:indicator_update, :room_title)
       host.dispatch_tag(%q{<streamWindow id='room' subtitle=" - [Town Square]"/>}, String.new)
+
       expect(state.room_title).to eq 'Town Square'
+      expect(events).to include(a_hash_including(type: :room_title, text: 'Town Square'))
+      expect(events).to include(a_hash_including(type: :indicator_update, id: 'room', label: 'Town Square'))
     end
 
     it 'handles DR subtitle with room number' do
       host.dispatch_tag(%q{<streamWindow id='room' subtitle=" - [Bosque Deriel] (230008)"/>}, String.new)
       expect(state.room_title).to eq 'Bosque Deriel (230008)'
+    end
+  end
+
+  # ---- Clear stream handler ----
+
+  describe '#handle_clear_stream' do
+    it 'emits clear_spells for percWindow' do
+      events = collect_events(:clear_spells)
+      host.dispatch_tag('<clearStream id="percWindow"/>', String.new)
+      expect(events.length).to eq 1
+    end
+
+    it 'does not emit for non-percWindow' do
+      events = collect_events(:clear_spells)
+      host.dispatch_tag('<clearStream id="other"/>', String.new)
+      expect(events).to be_empty
     end
   end
 
@@ -564,10 +649,9 @@ RSpec.describe TagHandlers do
     end
 
     it 'spell with empty content' do
-      ind = SpyIndicator.new
-      wm.indicator['spell'] = ind
+      events = collect_events(:indicator_update)
       host.dispatch_tag('<spell></spell>', String.new)
-      expect(ind.label).to eq ''
+      expect(events.last).to include(id: 'spell', label: '')
     end
 
     it 'preset with unknown id does not crash' do
@@ -602,8 +686,6 @@ RSpec.describe TagHandlers do
       buf = +''
       host.dispatch_tag('<pushBold/>', buf)
       host.dispatch_tag('<popBold/>', buf)
-      # Zero-length region — should NOT be pushed (no fg/bg to display)
-      # Actually it should be pushed but with start == end, which is harmless
       if host.line_colors.any?
         region = host.line_colors.first
         expect(region[:start]).to eq region[:end]
@@ -611,8 +693,6 @@ RSpec.describe TagHandlers do
     end
 
     it 'color region positions are correct after entity unescaping in text' do
-      # Text "a&lt;b" unescaped is "a<b" (3 chars)
-      # Bold wrapping "a<b" should produce region 0..3
       PRESET['monsterbold'] = ['ff0000', nil]
       buf = +''
       host.dispatch_tag('<pushBold/>', buf)
@@ -681,7 +761,6 @@ RSpec.describe TagHandlers do
       host.current_stream = 'thoughts'
       host.dispatch_tag('<popStream id="combat" />', String.new)
       expect(host.combat_next_line).to be false
-      # current_stream should be nil (stream close)
       expect(host.current_stream).to be_nil
     end
   end
@@ -695,7 +774,6 @@ RSpec.describe TagHandlers do
       host.dispatch_tag('</d>', buf)
 
       link = host.line_colors.find { |c| c[:cmd] }
-      # With start == end, cmd extraction should fail the guard
       expect(link).to be_nil
     end
 
@@ -721,32 +799,28 @@ RSpec.describe TagHandlers do
   end
 
   describe 'adversarial: progress bar edge cases' do
-    it 'handles health at 0%' do
-      prog = SpyIndicator.new
-      wm.progress['health'] = prog
+    it 'emits health at 0%' do
+      events = collect_events(:progress_update)
       host.dispatch_tag("<progressBar id='health' value='0' text='health 0%'/>", String.new)
-      expect(prog.updates).to include([0, 100])
+      expect(events.last).to include(id: 'health', value: 0, max: 100)
     end
 
-    it 'handles encumbrance "Overloaded" text' do
-      prog = SpyIndicator.new
-      wm.progress['encumbrance'] = prog
+    it 'emits encumbrance Overloaded as 110' do
+      events = collect_events(:progress_update)
       host.dispatch_tag("<progressBar id='encumlevel' value='100' text='Overloaded'/>", String.new)
-      expect(prog.updates).to include([110, 110])
+      expect(events.last).to include(id: 'encumbrance', value: 110, max: 110)
     end
 
-    it 'handles mind "saturated" text' do
-      prog = SpyIndicator.new
-      wm.progress['mind'] = prog
+    it 'emits mind saturated as 110' do
+      events = collect_events(:progress_update)
       host.dispatch_tag("<progressBar id='mindState' value='100' text='saturated'/>", String.new)
-      expect(prog.updates).to include([110, 110])
+      expect(events.last).to include(id: 'mind', value: 110, max: 110)
     end
 
-    it 'handles GS vitals with negative current' do
-      prog = SpyIndicator.new
-      wm.progress['health'] = prog
+    it 'emits GS vitals with negative current' do
+      events = collect_events(:progress_update)
       host.dispatch_tag("<progressBar id='health' value='0' text='health -5/100'/>", String.new)
-      expect(prog.updates).to include([-5, 100])
+      expect(events.last).to include(id: 'health', value: -5, max: 100)
     end
   end
 end

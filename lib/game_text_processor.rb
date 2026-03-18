@@ -8,6 +8,7 @@ require_relative 'familiar_notifier'
 require_relative 'xml_tokenizer'
 require_relative 'tag_handlers'
 require_relative 'styled_text'
+require_relative 'event_bus'
 
 # Processes game server output in a dedicated thread, handling XML tag parsing,
 # stream routing, room data assembly, spell abbreviation, and UI updates.
@@ -26,12 +27,18 @@ require_relative 'styled_text'
 # TagHandlers dispatches each tag to a focused handler method
 # via a hash lookup table.
 #
+# UI updates are emitted via an EventBus rather than calling window
+# methods directly. This decouples parsing from rendering and enables
+# testing without curses.
+#
 # @example
+#   bus = EventBus.new
 #   processor = GameTextProcessor.new(
 #     window_mgr:  wm,
 #     shared_state: state,
 #     cmd_buffer:   cmd_buffer,
-#     xml_escapes:  { '&gt;' => '>', '&lt;' => '<' }
+#     xml_escapes:  { '&gt;' => '>', '&lt;' => '<' },
+#     event_bus:    bus
 #   )
 #   processor.run(server)
 class GameTextProcessor
@@ -46,11 +53,13 @@ class GameTextProcessor
   # @param shared_state [OpenStruct] mutable state shared with the input thread (need_prompt, prompt_text, skip_server_time_offset)
   # @param cmd_buffer [CommandBuffer] the command-line input buffer (used for Curses refresh coordination)
   # @param xml_escapes [Hash<String, String>] XML entity to character mappings (e.g. +"&gt;"+ => +">"+)
-  def initialize(window_mgr:, shared_state:, cmd_buffer:, xml_escapes:)
+  # @param event_bus [EventBus] event bus for decoupled UI updates
+  def initialize(window_mgr:, shared_state:, cmd_buffer:, xml_escapes:, event_bus:)
     @wm = window_mgr
     @state = shared_state
     @cmd_buffer = cmd_buffer
     @xml_escapes = xml_escapes
+    @event_bus = event_bus
 
     # Line color/style tracking
     @line_colors = []
@@ -114,13 +123,7 @@ class GameTextProcessor
       line.chomp!
 
       if line.match(GagPatterns.general_regexp)
-        # p line.inspect
-        # File.write("gaglog.txt", line.inspect + "\n", mode: "a")
-        # line = nil
         next
-        # elsif line.match(/\w+ offers you .* almanac .* ACCEPT to accept the offer or DECLINE to decline it\./)
-        # Saelia offers you an encyclopedic almanac carefully bound with a shadowleaf cover.  Enter ACCEPT to accept the offer or DECLINE to decline it.  The offer will expire in 30 seconds.
-        # server.puts("accept\nawake\n")
       elsif line.empty?
         @emptycount += 1
         if @emptycount > 1
@@ -130,10 +133,6 @@ class GameTextProcessor
       else
         @emptycount = 0
       end
-
-      # if line.match(/The moth/)
-      #   File.write("mothlog.txt", line.inspect + "\n", mode: "a")
-      # end
 
       # Synchronize all curses operations (noutrefresh calls from indicator,
       # text, countdown, and room window updates) with the final doupdate so
@@ -169,9 +168,9 @@ class GameTextProcessor
           else
             if @state.need_prompt
               @state.need_prompt = false
-              add_prompt(main_window, @state.prompt_text)
+              @event_bus.emit(:add_prompt, stream: MAIN_STREAM, text: @state.prompt_text)
             end
-            main_window.route_string(String.new, [], MAIN_STREAM)
+            @event_bus.emit(:stream_text, stream: MAIN_STREAM, text: String.new, colors: [])
             @need_update = true
           end
         end
@@ -186,7 +185,7 @@ class GameTextProcessor
       if @need_update && !IO.select([server], nil, nil, 0.001)
         @need_update = false
         if @need_room_render
-          @wm.room['room']&.render
+          @event_bus.emit(:room_render)
           @need_room_render = false
         end
         @cmd_buffer.window&.noutrefresh
@@ -218,12 +217,7 @@ class GameTextProcessor
   private
 
   def show_disconnect_message
-    window = @wm.stream[MAIN_STREAM]
-    return unless window
-
-    ['* ', '* Connection closed', '* Press any key to exit...', '* '].each do |msg|
-      window.add_string(msg, [{ start: 0, end: msg.length, fg: FEEDBACK_COLOR, bg: nil, ul: nil }])
-    end
+    @event_bus.emit(:disconnect)
     CursesRenderer.render do
       @cmd_buffer.window&.noutrefresh
     end
@@ -257,19 +251,14 @@ class GameTextProcessor
     safe_eval_arithmetic(str)
   end
 
-  # Set the stun countdown timer end time.
-  # The countdown display is polled by Application#tick_countdowns
-  # on every input loop iteration (~100ms).
+  # Set the stun countdown timer end time via the event bus.
   #
   # @param seconds [Integer, Float] duration of the stun in seconds
   # @return [void]
   # @api private
   def new_stun(seconds)
-    if (window = @wm.countdown['stunned'])
-      window.end_time = Time.now.to_f - $server_time_offset.to_f + seconds.to_f
-      window.update
-      @need_update = true
-    end
+    @event_bus.emit(:stun, seconds: seconds)
+    @need_update = true
   end
 
   # Process a line from the game server by tokenizing it into text and
@@ -330,27 +319,20 @@ class GameTextProcessor
     elsif text =~ Games::DragonRealms::SHADOW_VALLEY_PATTERN
       # Shadow Valley exit stun
       new_stun(16.2)
-    # elsif text =~ /^You have.*?(?:case of uncontrollable convulsions|case of sporadic convulsions|strange case of muscle twitching)/
-    #   # nsys wound will be correctly set by xml, dont set the scar using health verb output
-    #   skip_nsys = true
     elsif text =~ /^You glance down at your empty hands\./
-      if (window = @wm.indicator['right'])
-        window.label = 'Empty'
-        @need_update = true
-      end
-      if (window = @wm.indicator['left'])
-        window.label = 'Empty'
-        @need_update = true
-      end
-    # elsif skip_nsys
-    #   skip_nsys = false
-    elsif (window = @wm.indicator['nsys'])
+      @event_bus.emit(:indicator_update, id: 'right', label: 'Empty')
+      @event_bus.emit(:indicator_update, id: 'left', label: 'Empty')
+      @need_update = true
+    else
       if text =~ /^You have.*? very difficult time with muscle control/
-        @need_update = true if window.update(3)
+        @event_bus.emit(:indicator_update, id: 'nsys', value: 3)
+        @need_update = true
       elsif text =~ /^You have.*? constant muscle spasms/
-        @need_update = true if window.update(2)
+        @event_bus.emit(:indicator_update, id: 'nsys', value: 2)
+        @need_update = true
       elsif text =~ /^You have.*? developed slurred speech/
-        @need_update = true if window.update(1)
+        @event_bus.emit(:indicator_update, id: 'nsys', value: 1)
+        @need_update = true
       end
     end
 
@@ -375,16 +357,7 @@ class GameTextProcessor
     unless text.strip.empty?
       if @current_stream
 
-        # if text.match(/This is a test/)
-        #   server.puts("echo tested\necho bar\n")
-        # elsif text.match(/\w+ offers you .* almanac .* ACCEPT to accept the offer or DECLINE to decline it\./)
-        #   # Saelia offers you an encyclopedic almanac carefully bound with a shadowleaf cover.  Enter ACCEPT to accept the offer or DECLINE to decline it.  The offer will expire in 30 seconds.
-
-        #   server.puts("accept\nawake\n")
-        # end
-
         if @current_stream == 'combat' && text.match(GagPatterns.combat_regexp)
-          # File.write("combatgaglog.txt", line.inspect + "\n", mode: "a")
           return
         end
 
@@ -476,41 +449,37 @@ class GameTextProcessor
               @line_colors.push(start: 0, fg: PRESET[@current_stream][0], bg: PRESET[@current_stream][1],
                                 end: text.length)
             end
-            # window.add_string(text, @line_colors)
-            # @need_update = true
           end
           unless text =~ /^\[server\]: "(?:kill|connect)/
-            window.route_string(text, @line_colors, @current_stream)
+            @event_bus.emit(:stream_text, stream: @current_stream, text: text, colors: @line_colors)
             @need_update = true
             # Track content sent to stream windows to prevent duplicate to main
             @last_stream_text = text.strip
           end
         elsif @current_stream =~ /^(?:death|logons|thoughts|voln|familiar|assess|ooc|shopWindow|combat|moonWindow|atmospherics)$/
-          if (window = @wm.stream[MAIN_STREAM])
-            # Append timestamp to speech/thoughts/familiar when --speech-ts is active
-            if @current_stream =~ /^(?:thoughts|familiar)$/ && SPEECH_TS
-              text = "#{text} (#{Time.now.strftime('%H:%M:%S').sub(/^0/, '')})"
-            end
-            if PRESET[@current_stream]
-              @line_colors.push(start: 0, fg: PRESET[@current_stream][0], bg: PRESET[@current_stream][1],
-                                end: text.length)
-            end
-            unless text.empty?
-              # Detect movement in stream content too
-              @last_was_movement = true if text =~ /^You (?:run|walk|go|swim|climb|crawl|drag|stride|sneak|stalk)\b/
+          # Append timestamp to speech/thoughts/familiar when --speech-ts is active
+          if @current_stream =~ /^(?:thoughts|familiar)$/ && SPEECH_TS
+            text = "#{text} (#{Time.now.strftime('%H:%M:%S').sub(/^0/, '')})"
+          end
+          if PRESET[@current_stream]
+            @line_colors.push(start: 0, fg: PRESET[@current_stream][0], bg: PRESET[@current_stream][1],
+                              end: text.length)
+          end
+          unless text.empty?
+            # Detect movement in stream content too
+            @last_was_movement = true if text =~ /^You (?:run|walk|go|swim|climb|crawl|drag|stride|sneak|stalk)\b/
 
-              if @state.need_prompt && !@last_was_movement
-                @state.need_prompt = false
-                add_prompt(window, @state.prompt_text)
-              elsif @state.need_prompt
-                @state.need_prompt = false # Consume but don't display after movement
-              end
-              window.route_string(text, @line_colors, @current_stream)
-              @need_update = true
+            if @state.need_prompt && !@last_was_movement
+              @state.need_prompt = false
+              @event_bus.emit(:add_prompt, stream: MAIN_STREAM, text: @state.prompt_text)
+            elsif @state.need_prompt
+              @state.need_prompt = false # Consume but don't display after movement
             end
+            @event_bus.emit(:stream_text, stream: MAIN_STREAM, text: text, colors: @line_colors)
+            @need_update = true
           end
         end
-      elsif (window = @wm.stream[MAIN_STREAM])
+      elsif @wm.stream[MAIN_STREAM]
         # Skip duplicate content that was already sent to a stream window
         if @last_stream_text && text.strip == @last_stream_text
           @last_stream_text = nil
@@ -521,7 +490,7 @@ class GameTextProcessor
           # Skip prompt after movement
           if @state.need_prompt && !@last_was_movement
             @state.need_prompt = false
-            add_prompt(window, @state.prompt_text)
+            @event_bus.emit(:add_prompt, stream: MAIN_STREAM, text: @state.prompt_text)
           elsif @state.need_prompt
             @state.need_prompt = false # Consume but don't display
           end
@@ -533,7 +502,7 @@ class GameTextProcessor
             text = styled.text
             @line_colors = styled.runs
           end
-          window.route_string(text, @line_colors, MAIN_STREAM, indent: room_captured ? false : nil)
+          @event_bus.emit(:stream_text, stream: MAIN_STREAM, text: text, colors: @line_colors, indent: room_captured ? false : nil)
           @need_update = true
           @last_was_movement = true if is_movement
         end

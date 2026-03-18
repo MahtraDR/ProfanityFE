@@ -12,7 +12,7 @@ Detects notable game events and sends summary notifications to the familiar stre
 # status messages, then formats them as short notifications.
 #
 # Expects the including class to provide:
-# - @wm          [WindowManager]
+# - @event_bus   [EventBus]
 # - @line_colors [Array<Hash>]
 # - @need_update [Boolean]
 #
@@ -27,16 +27,20 @@ module FamiliarNotifier
     note = extract_notification(text)
     return unless note
 
+    colors = if PRESET['monsterbold']
+               [{
+                 start: 0,
+                 end: note.length,
+                 fg: PRESET['monsterbold'][0],
+                 bg: PRESET['monsterbold'][1]
+               }]
+             else
+               []
+             end
+    @event_bus.emit(:stream_text, stream: 'familiar', text: note, colors: colors)
+    # Preserve existing behavior: clear line colors so the main text
+    # display doesn't inherit the notification styling
     @line_colors = []
-    if PRESET['monsterbold']
-      @line_colors = [{
-        start: 0,
-        end: note.length,
-        fg: PRESET['monsterbold'][0],
-        bg: PRESET['monsterbold'][1]
-      }]
-    end
-    @wm.stream['familiar']&.add_string(note, @line_colors)
     @need_update = true
   end
 

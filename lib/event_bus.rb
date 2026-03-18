@@ -1,0 +1,73 @@
+# frozen_string_literal: true
+
+# Simple synchronous publish-subscribe event bus.
+#
+# Decouples the game text parser from the UI by letting the parser
+# emit typed events and letting windows subscribe to the events they
+# care about. Enables testing without curses and session replay/logging.
+#
+# All handlers run synchronously in the emitting thread. This is
+# intentional — the game text processor and curses rendering share a
+# single CursesRenderer.synchronize block, so async delivery would
+# require additional locking.
+#
+# @example
+#   bus = EventBus.new
+#   bus.on(:stream_text) { |data| puts data[:text] }
+#   bus.emit(:stream_text, stream: 'main', text: 'Hello', colors: [])
+class EventBus
+  def initialize
+    @subscribers = Hash.new { |h, k| h[k] = [] }
+  end
+
+  # Subscribe a handler to an event type.
+  #
+  # @param event_type [Symbol] the event to listen for
+  # @yield [Hash] called with event data when the event fires
+  # @return [self] for chaining
+  def on(event_type, &handler)
+    @subscribers[event_type] << handler
+    self
+  end
+
+  # Emit an event to all registered handlers.
+  #
+  # @param event_type [Symbol] the event type
+  # @param data [Hash] keyword arguments passed to each handler
+  # @return [void]
+  def emit(event_type, **data)
+    @subscribers[event_type].each { |h| h.call(data) }
+  end
+
+  # Remove a specific handler or all handlers for an event type.
+  #
+  # @param event_type [Symbol] the event type
+  # @param handler [Proc, nil] specific handler to remove, or nil to remove all
+  # @return [void]
+  def off(event_type, handler = nil)
+    if handler
+      @subscribers[event_type].delete(handler)
+    else
+      @subscribers.delete(event_type)
+    end
+  end
+
+  # Remove all subscribers for all event types.
+  #
+  # @return [void]
+  def clear
+    @subscribers.clear
+  end
+
+  # Count subscribers for a specific event type or all types.
+  #
+  # @param event_type [Symbol, nil] event type, or nil for total count
+  # @return [Integer]
+  def subscriber_count(event_type = nil)
+    if event_type
+      @subscribers[event_type].size
+    else
+      @subscribers.values.sum(&:size)
+    end
+  end
+end
