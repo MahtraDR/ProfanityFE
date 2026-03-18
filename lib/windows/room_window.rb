@@ -261,8 +261,8 @@ class RoomWindow < BaseWindow
   # @return [void]
   # @api private
   def render_objects_section(text)
-    # Strip bold tags first
-    clean_text = text.gsub(%r{</?(?:pushBold|popBold)\s*/?>}, '')
+    # Strip bold tags first (<pushBold/>, <popBold/>, and <b>/</ b> wrappers)
+    clean_text = text.gsub(%r{</?(?:pushBold|popBold|b)\s*/?>}, '')
 
     clean_text, line_colors = extract_links(clean_text)
 

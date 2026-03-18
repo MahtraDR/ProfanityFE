@@ -248,6 +248,29 @@ RSpec.describe LinkExtractor do
         # LinkExtractor does NOT unescape entities — that's the caller's job
         expect(clean).to eq 'the &amp; door'
       end
+
+      it 'pre-strips non-link XML so <b> tags do not cause link position drift' do
+        # Real game data: monster bold wraps a linked creature
+        text = 'the <a exist="-2078" noun="Lodge">Wayside Lodge</a> and<b> a <a exist="-477668" noun="assistant">dwarven blacksmith assistant</a></b>.'
+        clean, colors = described_class.extract_links(text, links_enabled: true)
+
+        expect(clean).to eq 'the Wayside Lodge and a dwarven blacksmith assistant.'
+
+        lodge_link = colors.find { |c| c[:cmd] == 'look #-2078' }
+        assistant_link = colors.find { |c| c[:cmd] == 'look #-477668' }
+
+        # Link regions must match the actual character positions in clean_text
+        expect(clean[lodge_link[:start]...lodge_link[:end]]).to eq 'Wayside Lodge'
+        expect(clean[assistant_link[:start]...assistant_link[:end]]).to eq 'dwarven blacksmith assistant'
+      end
+
+      it 'pre-strips <style> tags without affecting link positions' do
+        text = '<style id=""/>You see <a exist="123" noun="sword">a sword</a> here.'
+        clean, colors = described_class.extract_links(text, links_enabled: true)
+
+        expect(clean).to eq 'You see a sword here.'
+        expect(clean[colors.first[:start]...colors.first[:end]]).to eq 'a sword'
+      end
     end
   end
 end

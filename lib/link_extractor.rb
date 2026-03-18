@@ -50,6 +50,13 @@ module LinkExtractor
     clean_text = text.dup
     line_colors = []
 
+    # Pre-strip non-link XML tags (e.g. <b>, <style>, <compass>) so they
+    # don't occupy character positions during link extraction. Without this,
+    # link color regions are computed against a string that still contains
+    # these tags, and the final catch-all strip shifts text without adjusting
+    # positions — causing color regions to land on wrong characters.
+    clean_text.gsub!(%r{<(?!/?[ad][\s>])[^>]+>}, '')
+
     if links_enabled
       preset = link_preset || PRESET['links'] || DEFAULT_LINK_COLOR
       while (m = clean_text.match(%r{<([ad])\s?([^>]*)>(.*?)</\1>}))
@@ -74,8 +81,8 @@ module LinkExtractor
       clean_text.gsub!(%r{<[ad]\s?[^>]*>(.*?)</[ad]>}, '\1')
     end
 
-    # Strip any remaining XML tags
-    clean_text.gsub!(%r{<[^>]+>}, '')
+    # Strip any orphaned/unclosed link tags left after extraction
+    clean_text.gsub!(%r{</?[ad][^>]*>}, '')
 
     [clean_text, line_colors]
   end
