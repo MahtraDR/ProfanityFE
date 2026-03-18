@@ -439,5 +439,6 @@ module TagHandlers
     @event_bus.emit(:indicator_update, id: 'room', label: room, value: 1)
     @event_bus.emit(:room_title, text: room)
     @need_update = true
+    @need_room_render = true
   end
 end
