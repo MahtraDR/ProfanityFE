@@ -23,11 +23,11 @@ running inside a standard terminal emulator.
 9. [Window Scrolling](#9-window-scrolling)
 10. [Tab Management](#10-tab-management)
 11. [Stream Routing](#11-stream-routing)
-13. [Link Display](#13-link-display)
-14. [Mouse Scroll Wheel](#14-mouse-scroll-wheel)
-15. [Autocomplete](#15-autocomplete)
-16. [Process Title](#16-process-title)
-17. [Tips and Troubleshooting](#17-tips-and-troubleshooting)
+12. [Link Display](#12-link-display)
+13. [Mouse Scroll Wheel](#13-mouse-scroll-wheel)
+14. [Autocomplete](#14-autocomplete)
+15. [Process Title](#15-process-title)
+16. [Tips and Troubleshooting](#16-tips-and-troubleshooting)
 
 ---
 
@@ -35,11 +35,19 @@ running inside a standard terminal emulator.
 
 ### Dependencies
 
-- **Ruby** (2.7 or later recommended)
-- **curses gem** -- install with `gem install curses`
+- **Ruby** (3.0 or later recommended)
+- **Bundler** -- install gems with `bundle install` (handles curses, rexml, rspec)
 - A terminal emulator that supports at least 256 colors (iTerm2, kitty,
   gnome-terminal, etc.)
 - A local game proxy (Lich or similar) listening on a TCP port
+
+### Installation
+
+```bash
+git clone https://github.com/MahtraDR/ProfanityFE.git
+cd ProfanityFE
+bundle install
+```
 
 ### Launching
 
@@ -1664,7 +1672,7 @@ is the replacement string (defaults to empty string if omitted).
 
 ---
 
-## 13. Link Display
+## 12. Link Display
 
 The `--links` flag enables colored highlighting and clicking of in-game link
 tags. Both GemStone (`<a>` tags) and DragonRealms (`<d cmd='...'>` tags) are
@@ -1695,7 +1703,7 @@ without restarting.
 
 ---
 
-## 14. Mouse Scroll Wheel
+## 13. Mouse Scroll Wheel
 
 ProfanityFE supports mouse scroll wheel input for scrolling the active text
 window. Because terminal emulators send different escape sequences for scroll
@@ -1715,7 +1723,7 @@ emulator.
 
 ---
 
-## 15. Autocomplete
+## 14. Autocomplete
 
 ProfanityFE provides command-line autocomplete via the `autocomplete` action.
 Bind it to a key (typically Tab) in your settings file:
@@ -1733,7 +1741,7 @@ entries matching the current input:
 
 ---
 
-## 16. Process Title
+## 15. Process Title
 
 ProfanityFE updates three things to show your character name and game state:
 
@@ -1764,7 +1772,7 @@ support title updates or you find it distracting.
 
 ---
 
-## 17. Tips and Troubleshooting
+## 16. Tips and Troubleshooting
 
 ### Terminal Requirements
 
