@@ -28,6 +28,7 @@ running inside a standard terminal emulator.
 14. [Autocomplete](#14-autocomplete)
 15. [Process Title](#15-process-title)
 16. [Tips and Troubleshooting](#16-tips-and-troubleshooting)
+17. [Sample Login Script](#17-sample-login-script)
 
 ---
 
@@ -1874,3 +1875,68 @@ ProfanityFE has a readline-style kill ring:
 - `cursor_kill_line` saves the entire line.
 - `cursor_yank` pastes the most recently killed text.
 - Successive kill operations accumulate text in the kill buffer (like Emacs).
+
+---
+
+## 17. Sample Login Script
+
+Here's a sample login script for Linux that launches Lich and connects
+ProfanityFE automatically. Usage: `./gemstone.sh <CHARNAME>`
+
+> **Note:** You may need to adjust `TERM` based on your terminal emulator
+> (e.g., `xterm-256color` vs `screen-256color`).
+
+```bash
+#!/bin/bash
+set -e
+
+port=8000
+CHAR=$1
+LICH_BIN=~/lich-5/lich.rbw
+PROFANITY_BIN=~/ProfanityFE/profanity.rb
+
+export TERM=screen-256color
+
+lookup_char_port () {
+  local char=$1
+  port=$(ps a | egrep -0 "\-\-login $char \-\-detachable-client=([0-9]+)" | egrep -o "[0-9]+" | sort | tail -n1)
+}
+
+if [[ -z $CHAR ]]; then
+  echo "Usage: gemstone.sh {{character_name}}"
+  exit
+fi
+
+if [[ -z $DISPLAY ]]; then
+  echo "Detected empty DISPLAY setting, defaulting to :0"
+fi
+
+echo "Attempting to login as $CHAR..."
+
+if ps aux | \grep [l]ich | \grep -i $CHAR; then
+  lookup_char_port $CHAR
+  echo "Detecting existing connection on port $port"
+else
+  if ps a | \grep [d]etachable-client; then
+    max_port=$(ps a | grep -Eo "\-\-detachable-client=([0-9]+)" | egrep -o "[0-9]+" | sort | tail -n1)
+    port=$(expr $max_port + 1)
+  fi
+  echo "Detecting existing clients but no connection for this character. Using Port[$port]"
+  echo "ruby $LICH_BIN --login $CHAR --detachable-client=$port --without-frontend 2> /dev/null &"
+
+  ruby $LICH_BIN --login $CHAR --detachable-client=$port --without-frontend 2> /dev/null &
+  sleep 4
+fi
+
+for i in {1..10}; do
+  echo "Attempting to connect to lich process... "
+  echo "ruby $PROFANITY_BIN --port=$port --char=$CHAR"
+  if ruby $PROFANITY_BIN --port=$port --char=$CHAR; then
+    echo "Done"
+    break
+  else
+    echo "Failed to establish connection, trying again in 3 seconds..."
+    sleep 3
+  fi
+done
+```
