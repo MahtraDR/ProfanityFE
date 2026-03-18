@@ -57,6 +57,11 @@ class SpyIndicatorWindow
     @calls << { method: :update, value: value }
     true
   end
+
+  def redraw
+    @calls << { method: :redraw }
+    true
+  end
 end
 
 class SpyProgressWindow
@@ -167,10 +172,11 @@ RSpec.describe WindowManager, '#subscribe_to_events' do
       expect(indicator.calls).to include(a_hash_including(method: :update, value: 1))
     end
 
-    it 'sets only label when no value provided' do
+    it 'redraws when only label changes (no value provided)' do
       event_bus.emit(:indicator_update, id: 'spell', label: 'None')
       expect(indicator.label).to eq 'None'
       expect(indicator.calls.select { |c| c[:method] == :update }).to be_empty
+      expect(indicator.calls).to include(a_hash_including(method: :redraw))
     end
 
     it 'sets only value when no label provided' do
@@ -179,10 +185,11 @@ RSpec.describe WindowManager, '#subscribe_to_events' do
       expect(indicator.calls).to include(a_hash_including(method: :update, value: 0))
     end
 
-    it 'sets label_colors when provided' do
+    it 'sets label_colors and redraws' do
       colors = [{ start: 0, end: 5, fg: 'ff0000' }]
       event_bus.emit(:indicator_update, id: 'spell', label: 'test', label_colors: colors)
       expect(indicator.label_colors).to eq colors
+      expect(indicator.calls).to include(a_hash_including(method: :redraw))
     end
 
     it 'ignores events for nonexistent indicators' do

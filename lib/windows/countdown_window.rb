@@ -51,6 +51,26 @@ class CountdownWindow < BaseWindow
     super
   end
 
+  private
+
+  # Render a text segment with explicit foreground/background colors.
+  # Uses attrset instead of attron-with-block to ensure the background
+  # attribute sticks on space characters (some curses implementations
+  # only apply attron to non-space characters).
+  #
+  # @param text [String] text to render at current cursor position
+  # @param fg_code [String, nil] foreground hex color
+  # @param bg_code [String, nil] background hex color
+  # @return [void]
+  def draw_segment(text, fg_code, bg_code)
+    attr = Curses.color_pair(get_color_pair_id(fg_code, bg_code)) | Curses::A_NORMAL
+    attrset(attr)
+    addstr(text)
+    attrset(Curses::A_NORMAL)
+  end
+
+  public
+
   # Recalculate remaining time and redraw if the display changed.
   #
   # @return [Boolean] true if the display was redrawn, false if unchanged
@@ -68,19 +88,19 @@ class CountdownWindow < BaseWindow
           str = "#{@label}#{'?'.rjust(maxx - @label.length)}"
           left_background_str = str[0, 1].to_s
           right_background_str = str[left_background_str.length, (@label.length + (maxx - @label.length))].to_s
-          render_colored(left_background_str, @fg[1], @bg[1])
-          render_colored(right_background_str, @fg[2], @bg[2])
+          draw_segment(left_background_str, @fg[1], @bg[1])
+          draw_segment(right_background_str, @fg[2], @bg[2])
         else
-          render_colored(str, @fg[0], @bg[0])
+          draw_segment(str, @fg[0], @bg[0])
         end
       else
         left_background_str = str[0, @value].to_s
         secondary_background_str = str[left_background_str.length, (@secondary_value - @value)].to_s
         right_background_str = str[(left_background_str.length + secondary_background_str.length),
                                    (@label.length + (maxx - @label.length))].to_s
-        render_colored(left_background_str, @fg[1], @bg[1]) unless left_background_str.empty?
-        render_colored(secondary_background_str, @fg[2], @bg[2]) unless secondary_background_str.empty?
-        render_colored(right_background_str, @fg[3], @bg[3]) unless right_background_str.empty?
+        draw_segment(left_background_str, @fg[1], @bg[1]) unless left_background_str.empty?
+        draw_segment(secondary_background_str, @fg[2], @bg[2]) unless secondary_background_str.empty?
+        draw_segment(right_background_str, @fg[3], @bg[3]) unless right_background_str.empty?
       end
       @old_active = @active
       noutrefresh

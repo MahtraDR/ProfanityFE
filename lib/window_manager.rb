@@ -142,9 +142,20 @@ class WindowManager
       window = @indicator[data[:id]]
       next unless window
 
-      window.label = data[:label] if data.key?(:label)
-      window.label_colors = data[:label_colors] if data.key?(:label_colors)
-      window.update(data[:value]) if data.key?(:value)
+      label_changed = false
+      if data.key?(:label) && window.label != data[:label]
+        window.label = data[:label]
+        label_changed = true
+      end
+      if data.key?(:label_colors)
+        window.label_colors = data[:label_colors]
+        label_changed = true
+      end
+      if data.key?(:value)
+        window.update(data[:value])
+      elsif label_changed
+        window.redraw
+      end
     end
 
     event_bus.on(:compass_update) do |data|
