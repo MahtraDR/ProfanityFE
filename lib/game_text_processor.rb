@@ -5,6 +5,8 @@ require_relative 'games/dragonrealms'
 require_relative 'games/gemstone'
 require_relative 'room_data_processor'
 require_relative 'familiar_notifier'
+require_relative 'xml_tokenizer'
+require_relative 'tag_handlers'
 
 # Processes game server output in a dedicated thread, handling XML tag parsing,
 # stream routing, room data assembly, spell abbreviation, and UI updates.
@@ -18,10 +20,10 @@ require_relative 'familiar_notifier'
 # updates, stun detection, bold/color/preset tracking, highlight
 # application, and movement suppression.
 #
-# Extracted from the main server read Thread.new block in profanity.rb
-# (~1,165 lines). Converts thread-local variables to instance variables,
-# the handle_game_text proc to a private method, and the while loop to
-# the public #run method.
+# Tag processing uses a tokenize-and-dispatch architecture:
+# XmlTokenizer splits each line into text and tag segments,
+# TagHandlers dispatches each tag to a focused handler method
+# via a hash lookup table.
 #
 # @example
 #   processor = GameTextProcessor.new(
@@ -35,9 +37,7 @@ class GameTextProcessor
   include Games::DragonRealms
   include RoomDataProcessor
   include FamiliarNotifier
-
-  # Default link color [fg, bg] when no 'links' preset is defined in the template
-  DEFAULT_LINK_COLOR = ['5555ff', nil].freeze
+  include TagHandlers
 
   # Create a new processor wired to the given window manager and shared state.
   #
@@ -137,7 +137,7 @@ class GameTextProcessor
       # Synchronize all curses operations (noutrefresh calls from indicator,
       # text, countdown, and room window updates) with the final doupdate so
       # that timer and input threads cannot flush a half-updated virtual screen.
-      # rubocop:disable Layout/BlockAlignment -- flat indent avoids 370-line re-indent
+      # rubocop:disable Layout/BlockAlignment -- flat indent avoids re-indent
       CursesRenderer.synchronize do
       if line.empty?
         if @current_stream.nil?
@@ -175,340 +175,8 @@ class GameTextProcessor
           end
         end
       else
-        # Save raw line with XML tags for room object extraction (RoomWindow needs tags)
         @current_raw_line = line.dup
-        while (xml_match = line.match(/(?<xml><(?<tag>prompt|spell|right|left|inv|compass).*?\k<tag>>|<.*?>)/))
-          start_pos = xml_match.begin(0)
-          xml = xml_match[:xml]
-          line.slice!(start_pos, xml.length)
-
-          if xml =~ %r{<popStream id="combat" />}
-            # File.write("poplog.txt", line.inspect + "\n", mode: "a")
-            @combat_next_line = false
-          end
-
-          if (prompt_match = xml.match(%r{^<prompt time=(?<q>'|")(?<time>[0-9]+)\k<q>.*?>(?<text>.*?)&gt;</prompt>$}))
-            unless @state.skip_server_time_offset
-              $server_time_offset = Time.now.to_f - prompt_match[:time].to_f
-              @state.skip_server_time_offset = true
-            end
-            new_prompt_text = "#{prompt_match[:text]}>"
-            if @state.prompt_text != new_prompt_text
-              @state.need_prompt = false
-              @state.prompt_text = new_prompt_text
-              add_prompt(@wm.stream[MAIN_STREAM], new_prompt_text)
-              if (prompt_window = @wm.indicator['prompt'])
-                init_prompt_height = fix_layout_number(prompt_window.layout[0])
-                init_prompt_width = fix_layout_number(prompt_window.layout[1])
-                new_prompt_width = new_prompt_text.length
-                prompt_window.resize(init_prompt_height, new_prompt_width)
-                prompt_width_diff = new_prompt_width - init_prompt_width
-                @wm.command_window.resize(fix_layout_number(@wm.command_window_layout[0]),
-                                          fix_layout_number(@wm.command_window_layout[1]) - prompt_width_diff)
-                ctop = fix_layout_number(@wm.command_window_layout[2])
-                cleft = fix_layout_number(@wm.command_window_layout[3]) + prompt_width_diff
-                @wm.command_window.move(ctop, cleft)
-                prompt_window.label = new_prompt_text
-              end
-            else
-              @state.need_prompt = true
-            end
-          elsif (spell_match = xml.match(%r{^<spell(?:>|\s.*?>)(?<spell>.*?)</spell>$}))
-            if (window = @wm.indicator['spell'])
-              window.label = spell_match[:spell]
-              window.update(spell_match[:spell] == 'None' ? 0 : 1)
-              @need_update = true
-            end
-          elsif (hand_match = xml.match(%r{^<(?<hand>right|left)(?:>|\s.*?>)(?<item>.*?\S*?)</\k<hand>>}))
-            if (window = @wm.indicator[hand_match[:hand]])
-              window.label = hand_match[:item]
-              window.update(hand_match[:item] == 'Empty' ? 0 : 1)
-              @need_update = true
-            end
-          elsif (rt_match = xml.match(/^<roundTime value=(?<q>'|")(?<value>[0-9]+)\k<q>/))
-            if (window = @wm.countdown['roundtime'])
-              temp_roundtime_end = rt_match[:value].to_i
-              window.end_time = temp_roundtime_end
-              window.update
-              @need_update = true
-              Thread.new do
-                sleep 0.15
-                while (@wm.countdown['roundtime'].end_time == temp_roundtime_end) and (@wm.countdown['roundtime'].value > 0)
-                  sleep 0.15
-                  CursesRenderer.render do
-                    next unless @wm.countdown['roundtime'].update
-
-                    @cmd_buffer.window&.noutrefresh
-                  end
-                end
-              rescue StandardError => e
-                ProfanityLog.write('roundtime thread', e.to_s, backtrace: e.backtrace)
-              end
-            end
-          elsif (cast_match = xml.match(/^<castTime value=(?<q>'|")(?<value>[0-9]+)\k<q>/))
-            if (window = @wm.countdown['roundtime'])
-              temp_casttime_end = cast_match[:value].to_i
-              window.secondary_end_time = temp_casttime_end
-              window.update
-              @need_update = true
-              Thread.new do
-                while (@wm.countdown['roundtime'].secondary_end_time == temp_casttime_end) and (@wm.countdown['roundtime'].secondary_value > 0)
-                  sleep 0.15
-                  CursesRenderer.render do
-                    next unless @wm.countdown['roundtime'].update
-
-                    @cmd_buffer.window&.noutrefresh
-                  end
-                end
-              rescue StandardError => e
-                ProfanityLog.write('casttime thread', e.to_s, backtrace: e.backtrace)
-              end
-            end
-          elsif xml =~ /^<compass/
-            current_dirs = xml.scan(/<dir value="(.*?)"/).flatten
-            %w[up down out n ne e se s sw w nw].each do |dir|
-              next unless (window = @wm.indicator["compass:#{dir}"])
-
-              @need_update = true if window.update(current_dirs.include?(dir))
-            end
-          elsif (encum_match = xml.match(/^<progressBar id='encumlevel' value='(?<value>[0-9]+)' text='(?<text>.*?)'/))
-            if (window = @wm.progress['encumbrance'])
-              value = encum_match[:text] == 'Overloaded' ? 110 : encum_match[:value].to_i
-              @need_update = true if window.update(value, 110)
-            end
-          elsif (stance_match = xml.match(/^<progressBar id='pbarStance' value='(?<value>[0-9]+)'/))
-            if (window = @wm.progress['stance']) && window.update(stance_match[:value].to_i, 100)
-              @need_update = true
-            end
-          elsif (mind_match = xml.match(/^<progressBar id='mindState' value='(?<value>.*?)' text='(?<text>.*?)'/))
-            if (window = @wm.progress['mind'])
-              value = mind_match[:text] == 'saturated' ? 110 : mind_match[:value].to_i
-              @need_update = true if window.update(value, 110)
-            end
-          # GemStone vitals: text contains current/max (e.g., "health 456/456")
-          elsif (gs_match = xml.match(/^<progressBar id='(?<id>.*?)' value='[0-9]+' text='.*?\s+(?<cur>-?[0-9]+)\/(?<max>[0-9]+)'/))
-            if (window = @wm.progress[gs_match[:id]]) && window.update(gs_match[:cur].to_i, gs_match[:max].to_i)
-              @need_update = true
-            end
-          # DragonRealms vitals: text contains percentage (e.g., "health 75%")
-          elsif (dr_match = xml.match(/^<progressBar id='(?<id>health|mana|spirit|stamina|concentration)' value='(?<value>[0-9]+)' text='(?:health|mana|spirit|fatigue|concentration|inner fire) [0-9]+\%'/))
-            if (window = @wm.progress[dr_match[:id]]) && window.update(dr_match[:value].to_i, 100)
-              @need_update = true
-            end
-
-          # User-defined arbitrary progress bars with dynamic colors/labels
-          # Example: <arbProgress id='spellactivel' max='250' current='160' label='WaterWalking' colors='1589FF,000000'</arbProgress>
-          elsif (arb_match = xml.match(/^<arbProgress id='(?<id>[a-zA-Z0-9]+)' max='(?<max>\d+)' current='(?<cur>\d+)'(?:\s+label='(?<label>.+?)')?(?:\s+colors='(?<colors>\S+?)')?/))
-            current = [arb_match[:cur].to_i, arb_match[:max].to_i].min
-            if (window = @wm.progress[arb_match[:id]])
-              window.label = arb_match[:label] if arb_match[:label]
-              if arb_match[:colors]
-                bg, fg = arb_match[:colors].split(',')
-                window.bg = [bg] if bg
-                window.fg = [fg] if fg
-              end
-              @need_update = true if window.update(current, arb_match[:max].to_i)
-            end
-
-          elsif ['<pushBold/>', '<b>'].include?(xml)
-            h = { start: start_pos }
-            if PRESET['monsterbold']
-              h[:fg] = PRESET['monsterbold'][0]
-              h[:bg] = PRESET['monsterbold'][1]
-            end
-            @open_monsterbold.push(h)
-          elsif ['<popBold/>', '</b>'].include?(xml)
-            if (h = @open_monsterbold.pop)
-              h[:end] = start_pos
-              @line_colors.push(h) if h[:fg] or h[:bg]
-            end
-          elsif (preset_match = xml.match(/^<preset id=(?<q>'|")(?<id>.*?)\k<q>>$/))
-            preset_id = preset_match[:id]
-            # Only extract text for roomDesc preset
-            if preset_id == 'roomDesc' && @wm.room['room']
-              game_text = line.slice!(0, start_pos)
-              handle_game_text(game_text)
-              @room_capture_mode = :desc
-            end
-            h = { start: start_pos }
-            if PRESET[preset_id]
-              h[:fg] = PRESET[preset_id][0]
-              h[:bg] = PRESET[preset_id][1]
-            end
-            @open_preset.push(h)
-          elsif xml == '</preset>'
-            # Only extract text if we're in room description capture mode
-            if @room_capture_mode == :desc
-              game_text = line.slice!(0, start_pos)
-              handle_game_text(game_text)
-            end
-            if (h = @open_preset.pop)
-              h[:end] = start_pos
-              @line_colors.push(h) if h[:fg] or h[:bg]
-            end
-          elsif xml =~ /^<color/
-            h = { start: start_pos }
-            h[:fg] = fg_match[:val].downcase if (fg_match = xml.match(/\sfg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
-            h[:bg] = bg_match[:val].downcase if (bg_match = xml.match(/\sbg=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
-            h[:ul] = ul_match[:val].downcase if (ul_match = xml.match(/\sul=(?<q>'|")(?<val>.*?)\k<q>[\s>]/))
-            @open_color.push(h)
-          elsif xml == '</color>'
-            if (h = @open_color.pop)
-              h[:end] = start_pos
-              @line_colors.push(h)
-            end
-          elsif (style_match = xml.match(/^<style id=(?<q>'|")(?<id>.*?)\k<q>/))
-            style_id = style_match[:id]
-            # Only extract text for room-related styles
-            if style_id.empty? && (@room_capture_mode == :title || @room_capture_mode == :desc)
-              # Closing style tag while in title/desc mode - extract the text
-              game_text = line.slice!(0, start_pos)
-              handle_game_text(game_text)
-            end
-            if style_id.empty?
-              if @open_style
-                @open_style[:end] = start_pos
-                if (@open_style[:start] < @open_style[:end]) and (@open_style[:fg] or @open_style[:bg])
-                  @line_colors.push(@open_style)
-                end
-                @open_style = nil
-              end
-            else
-              @open_style = { start: start_pos }
-              if PRESET[style_id]
-                @open_style[:fg] = PRESET[style_id][0]
-                @open_style[:bg] = PRESET[style_id][1]
-              end
-              # Set room capture mode for roomName style.
-              # Captures the inline title text (e.g., "[Room] (230008)") for
-              # both the RoomWindow and the terminal title.
-              @room_capture_mode = :title if style_id == 'roomName'
-              @room_capture_mode = :desc if style_id == 'roomDesc' && @wm.room['room']
-            end
-          elsif @combat_next_line && !line.empty?
-            # line = "<pushStream id=\"combat\" />#{line.chomp}"
-            @current_stream = 'combat'
-            # File.write("combatnextlog.txt", line.inspect + "\n", mode: "a")
-            game_text = line.slice!(0, start_pos)
-            handle_game_text(game_text)
-          elsif line =~ %r{^<pushStream id="combat" />}
-            # File.write("pushlog.txt", line.inspect + "\n", mode: "a")
-            @current_stream = 'combat'
-            game_text = line.slice!(0, start_pos)
-            handle_game_text(game_text)
-            @combat_next_line = true
-          elsif (stream_match = xml.match(%r{<(?:pushStream|component|compDef) id=(?<q>"|')(?<id>.*?)\k<q>[^>]*/?>}))
-            new_stream = stream_match[:id]
-            if (exp_match = new_stream.match(/^exp (?<skill>\w+\s?\w+?)/))
-              @current_stream = 'exp'
-              @wm.stream['exp'].set_current(exp_match[:skill]) if @wm.stream['exp']
-            # elsif new_stream =~ /^moonWindow/
-            # 	@current_stream = 'moonWindow'
-            # 	@wm.stream['moonWindow'].clear_spells if @wm.stream['moonWindow']
-            else
-              @current_stream = new_stream
-              # Extract room title from subtitle attribute.
-              # GS: <component id="room" subtitle=" - [Town Square, Center]">
-              # DR: <component id="room" subtitle=" - [Bosque Deriel, Shacks] (230008)">
-              if new_stream == 'room' && (sub_match = xml.match(/subtitle=(?<q>"|')(?<sub>.*?)\k<q>/))
-                title = parse_room_subtitle(sub_match[:sub])
-                unless title.empty?
-                  @state.room_title = title
-                  @wm.room['room']&.update_title(title)
-                end
-              end
-            end
-            game_text = line.slice!(0, start_pos)
-            handle_game_text(game_text)
-          elsif xml =~ %r{^<popStream(?!/><pushStream)} or xml == '</component>' or xml == '</compDef>'
-            game_text = line.slice!(0, start_pos)
-            handle_game_text(game_text)
-            @wm.stream['exp'].delete_skill if @current_stream == 'exp' and @wm.stream['exp']
-            @current_stream = nil
-          elsif xml =~ %r{^<clearStream id="percWindow"/>$}
-            @wm.stream['percWindow'].clear_spells if @wm.stream['percWindow']
-          elsif xml =~ /^<progressBar/
-            nil
-          # In-game link highlighting for both GemStone (<a>...</a>) and
-          # DragonRealms (<d cmd='...'>...</d>) clickable tags.
-          # Controlled by .links dot-command or --links CLI flag.
-          # Uses the 'links' preset color from template XML, falls back to blue.
-          # Captures the cmd (DR) or exist (GS) attribute for click dispatch.
-          elsif xml =~ /^<[ad][\s>]/
-            if @state.blue_links
-              preset = PRESET['links'] || DEFAULT_LINK_COLOR
-              link = { start: start_pos, fg: preset[0], bg: preset[1], priority: 2 }
-              # Extract the command for click dispatch:
-              #   DR: <d cmd='get #40872332'>  ->  "get #40872332"
-              #   GS: <a exist="12345" noun="sword">  ->  "_drag #12345"
-              if (cmd_match = xml.match(/cmd='(?<cmd>[^']+)'/))
-                link[:cmd] = cmd_match[:cmd]
-              elsif (exist_match = xml.match(/exist="(?<id>[^"]+)"/))
-                noun = xml.match(/noun="(?<n>[^"]+)"/)&.[](:n)
-                link[:cmd] = noun ? "look ##{exist_match[:id]}" : "_drag ##{exist_match[:id]}"
-              end
-              @open_link.push(link)
-            end
-          elsif xml =~ %r{^</[ad]>$}
-            if (h = @open_link.pop)
-              h[:end] = start_pos
-              # For <d> tags without cmd/exist (e.g., exit directions),
-              # use the link text itself as the command
-              h[:cmd] ||= line[h[:start]...start_pos] if h[:start] && start_pos > h[:start]
-              @line_colors.push(h) if h[:fg] or h[:bg]
-            end
-          # GS/DR room title: <streamWindow id='room' subtitle=" - [Room Name]"/>
-          # Updates room indicator window; terminal title is stored and
-          # flushed after the synchronize block.
-          elsif (sw_match = xml.match(/^<streamWindow id='room'.*?subtitle=(?<q>"|')(?<sub>.*?)\k<q>/))
-            room = parse_room_subtitle(sw_match[:sub])
-            unless room.empty?
-              @state.room_title = room
-              if (window = @wm.indicator['room'])
-                window.label = room
-                window.update(1)
-                @need_update = true
-              end
-              @wm.room['room']&.update_title(room)
-            end
-          elsif xml =~ %r{^<(?:dialogdata|/?component|label|skin|output)}
-            nil
-          elsif (ind_match = xml.match(/^<indicator id=(?<q1>'|")Icon(?<icon>[A-Z]+)\k<q1> visible=(?<q2>'|")(?<vis>[yn])\k<q2>/))
-            if (window = @wm.countdown[ind_match[:icon].downcase])
-              window.active = (ind_match[:vis] == 'y')
-              @need_update = true if window.update
-            end
-            if (window = @wm.indicator[ind_match[:icon].downcase]) && window.update(ind_match[:vis] == 'y')
-              @need_update = true
-            end
-          elsif (img_match = xml.match(/^<image id=(?<q1>'|")(?<id>back|leftHand|rightHand|head|rightArm|abdomen|leftEye|leftArm|chest|rightLeg|neck|leftLeg|nsys|rightEye)\k<q1> name=(?<q2>'|")(?<name>.*?)\k<q2>/))
-            if img_match[:id] == 'nsys'
-              if (window = @wm.indicator['nsys'])
-                if (rank = img_match[:name].slice(/[0-9]/))
-                  @need_update = true if window.update(rank.to_i)
-                elsif window.update(0)
-                  @need_update = true
-                end
-              end
-            else
-              fix_value = { 'Injury1' => 1, 'Injury2' => 2, 'Injury3' => 3, 'Scar1' => 4, 'Scar2' => 5, 'Scar3' => 6 }
-              if (window = @wm.indicator[img_match[:id]]) && window.update(fix_value[img_match[:name]] || 0)
-                @need_update = true
-              end
-            end
-          elsif (url_match = xml.match(/^<LaunchURL src="(?<src>[^"]+)"/))
-            url = "https://www.play.net#{url_match[:src]}"
-            # assume linux if not mac
-            # TODO somehow determine whether we are running in a gui environment?
-            # for now, just print it instead of trying to open it
-            # cmd = RUBY_PLATFORM =~ /darwin/ ? "open" : "firefox"
-            # system("#{cmd} #{url}")
-            @wm.stream[MAIN_STREAM].add_string ' *'.dup
-            @wm.stream[MAIN_STREAM].add_string " * LaunchURL: #{url}"
-            @wm.stream[MAIN_STREAM].add_string ' *'.dup
-          end
-        end
-        handle_game_text(line)
+        process_line_tags(line)
       end
       #
       # Flush screen update unless more game lines are waiting (batch rendering).
@@ -615,33 +283,46 @@ class GameTextProcessor
     end
   end
 
-  # Process a chunk of game text after XML tags have been stripped.
+  # Process a line from the game server by tokenizing it into text and
+  # tag segments, dispatching each tag to its handler, and flushing the
+  # accumulated text through handle_game_text.
   #
-  # Applies XML entity unescaping, captures room data (title, description,
-  # objects, players, exits) for RoomWindow, matches notification patterns
-  # for the familiar stream, detects stun/movement/health text, applies
-  # color presets and highlight patterns, and routes the final text to
-  # the appropriate window (stream, main, or dedicated handler).
+  # Replaces the original mutating regex-and-slice while loop. Entity
+  # unescaping happens per text segment before it enters the buffer,
+  # so color positions are always relative to the final unescaped text.
   #
-  # @param text [String] game text with XML tags already removed
+  # @param line [String] raw game server line
   # @return [void]
   # @api private
-  def handle_game_text(text)
-    text = text.dup if text.frozen?
-    @xml_escapes.each_key do |escapable|
-      replacement = @xml_escapes[escapable]
-      search_pos = 0
-      while (pos = text.index(escapable, search_pos))
-        text = text.sub(escapable, replacement)
-        @line_colors.each do |h|
-          h[:start] -= (escapable.length - 1) if h[:start] > pos
-          h[:end] -= (escapable.length - 1) if h[:end] > pos
-        end
-        @open_style[:start] -= (escapable.length - 1) if @open_style and (@open_style[:start] > pos)
-        search_pos = pos + replacement.length
+  def process_line_tags(line)
+    segments = XmlTokenizer.tokenize(line)
+    text_buffer = String.new
+
+    segments.each do |type, content|
+      case type
+      when :text
+        text_buffer << unescape_entities(content)
+      when :tag
+        dispatch_tag(content, text_buffer)
       end
     end
 
+    handle_game_text(text_buffer)
+  end
+
+  # Process a chunk of game text after XML tags have been stripped.
+  #
+  # Captures room data (title, description, objects, players, exits)
+  # for RoomWindow, matches notification patterns for the familiar
+  # stream, detects stun/movement/health text, applies color presets
+  # and highlight patterns, and routes the final text to the
+  # appropriate window (stream, main, or dedicated handler).
+  #
+  # @param text [String] game text with XML tags already removed and
+  #   entities already unescaped
+  # @return [void]
+  # @api private
+  def handle_game_text(text)
     # Room data capture for RoomWindow.
     # Always capture for the room window; only suppress from the story window
     # when --room-window-only is active.
