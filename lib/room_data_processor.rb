@@ -79,6 +79,13 @@ module RoomDataProcessor
     # exits) are not applicable — return early with whatever was captured.
     return room_data_captured unless @wm.room['room']
 
+    # Skip inline pattern matching when inside a component stream.
+    # Component stream data (room objs, room players, room exits) is
+    # handled by process_room_stream instead. Without this guard,
+    # process_room_data would consume the text and prevent
+    # process_room_stream from running.
+    return room_data_captured if @current_stream =~ /^room(\s|$)/
+
     # Detect "You also see" for objects (may have leading whitespace)
     if text =~ /^\s*You also see\b/
       # Extract from raw line to preserve <pushBold/> tags for RoomWindow creature highlighting.

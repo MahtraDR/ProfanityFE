@@ -6,7 +6,9 @@
 # gag, and highlight application.
 
 require_relative '../spec_helper'
+require 'rexml/document'
 require_relative '../../lib/game_text_processor'
+require_relative '../../lib/window_manager'
 
 RSpec.describe 'GameTextProcessor event emissions' do
   before { GagPatterns.load_defaults }
@@ -272,6 +274,97 @@ RSpec.describe 'GameTextProcessor event emissions' do
       process('Hello world.')
 
       expect(events.last[:colors]).to be_an(Array)
+    end
+  end
+
+  # ---- Standalone room component updates ----
+
+  describe 'standalone room component updates (not full room entry)' do
+    before do
+      wm.room['room'] = main_window
+    end
+
+    def process_line(line)
+      processor.send(:instance_variable_set, :@current_raw_line, line)
+      processor.send(:process_line_tags, line)
+    end
+
+    it 'emits :room_players when a standalone players component arrives' do
+      events = []
+      event_bus.on(:room_players) { |data| events << data }
+
+      process_line("<component id='room players'>Also here: Quilsilgas and Dark Summoner Vlachodimos.</component>")
+
+      expect(events.last).to include(text: a_string_matching(/Quilsilgas/))
+    end
+
+    it 'emits :room_objects when a standalone objects component arrives' do
+      events = []
+      event_bus.on(:room_objects) { |data| events << data }
+
+      process_line("<component id='room objs'>You also see <pushBold/>a goblin<popBold/> and a sword.</component>")
+
+      expect(events.last).to include(text: a_string_matching(/goblin/))
+    end
+
+    it 'sets need_room_render for non-exit room components' do
+      process_line("<component id='room players'>Also here: Mahtra.</component>")
+
+      expect(processor.send(:instance_variable_get, :@need_room_render)).to be true
+    end
+
+    it 'sets need_update for room components' do
+      process_line("<component id='room players'>Also here: Mahtra.</component>")
+
+      expect(processor.send(:instance_variable_get, :@need_update)).to be true
+    end
+
+    it 'subscriber receives room_players event and calls update_players on window' do
+      room_spy = Object.new
+      def room_spy.calls = @calls ||= []
+      def room_spy.update_title(t)  = calls << [:update_title, t]
+      def room_spy.update_desc(t)   = calls << [:update_desc, t]
+      def room_spy.update_objects(t) = calls << [:update_objects, t]
+      def room_spy.update_players(t) = calls << [:update_players, t]
+      def room_spy.update_exits(t)  = calls << [:update_exits, t]
+      def room_spy.render           = calls << [:render]
+      def room_spy.clear_supplemental = calls << [:clear_supplemental]
+      def room_spy.update_room_number(t) = calls << [:update_room_number, t]
+      def room_spy.update_stringprocs(t) = calls << [:update_stringprocs, t]
+
+      # Wire the spy through WindowManager subscription
+      test_wm = WindowManager.new
+      test_wm.instance_variable_set(:@room, { 'room' => room_spy })
+      test_wm.instance_variable_set(:@stream, { 'main' => main_window })
+      test_wm.subscribe_to_events(event_bus)
+
+      # Re-create processor with this wm
+      test_processor = GameTextProcessor.new(
+        window_mgr: test_wm, shared_state: state,
+        cmd_buffer: cmd_buffer, xml_escapes: xml_escapes, event_bus: event_bus
+      )
+
+      test_processor.send(:instance_variable_set, :@current_raw_line,
+        "<component id='room players'>Also here: Mahtra.</component>")
+      test_processor.send(:process_line_tags,
+        "<component id='room players'>Also here: Mahtra.</component>")
+
+      expect(room_spy.calls).to include([:update_players, a_string_matching(/Mahtra/)])
+    end
+
+    it 'room_render event triggers render on the room window' do
+      room_spy = Object.new
+      def room_spy.calls = @calls ||= []
+      def room_spy.render = calls << [:render]
+
+      test_wm = WindowManager.new
+      test_wm.instance_variable_set(:@room, { 'room' => room_spy })
+      test_wm.instance_variable_set(:@stream, { 'main' => main_window })
+      test_wm.subscribe_to_events(event_bus)
+
+      event_bus.emit(:room_render)
+
+      expect(room_spy.calls).to include([:render])
     end
   end
 
