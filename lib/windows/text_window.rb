@@ -240,7 +240,6 @@ BaseWindow.register_type('text') do |height, width, top, left, element, wm|
   else
     window = TextWindow.new(height, width - 1, top, left)
     window.scrollbar = Curses::Window.new(window.maxy, 1, window.begy, window.begx + window.maxx)
-    window.scrollbar.bkgd(Curses.color_pair(get_color_pair_id(nil, nil)))
   end
   window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
   window.scrollok(true)

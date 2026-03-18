@@ -266,11 +266,6 @@ ColorManager.configure(
   custom_colors: CUSTOM_COLORS
 )
 
-# Set global background attribute so curses renders background colors on spaces.
-# Without this, progress bars and countdown bars show text but no colored fill.
-Curses.bkgd(Curses.color_pair(get_color_pair_id(nil, nil)))
-Curses.refresh
-
 # ========== RUN ==========
 
 Application.new(cli_options).run

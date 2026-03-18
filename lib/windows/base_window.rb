@@ -32,9 +32,6 @@ class BaseWindow < Curses::Window
     @active = false
     @scrollbar_pos = nil
     super(*args)
-    # Set the window background attribute so curses renders background
-    # colors on spaces (required for countdown/progress bar backgrounds).
-    bkgd(Curses.color_pair(get_color_pair_id(nil, nil)))
     self.class.register_instance(self)
   end
 
