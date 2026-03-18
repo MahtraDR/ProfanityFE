@@ -71,7 +71,7 @@ ProfanityFE connects to `127.0.0.1` on the specified port.
 | `--links` | off | Enable in-game link highlighting |
 | `--speech-ts` | off | Add timestamps to speech, familiar, and thought windows |
 | `--room-window-only` | off | Do not echo room data to the story window (show only in room window) |
-| `--remote-url=<url>` | off | Display LaunchURLs as text (for SSH/remote sessions) |
+| `--remote-url` | off | Display LaunchURLs as text instead of opening browser (for SSH/remote sessions) |
 | `--default-color-id=<id>` | `7` | Curses color ID for the default foreground color |
 | `--default-background-color-id=<id>` | `0` | Curses color ID for the default background color |
 | `--custom-colors=<on\|off\|yes\|no>` | auto-detected | Force custom color mode on or off |
@@ -100,7 +100,7 @@ ruby profanity.rb --port=8000 --char=Mahtra --custom-colors=off
 ruby profanity.rb --port=8000 --char=Mahtra --use-default-colors --default-color-id=-1 --default-background-color-id=-1
 
 # Remote/SSH session (display URLs as text instead of launching)
-ruby profanity.rb --port=8000 --char=Mahtra --remote-url=https://game.example.com
+ruby profanity.rb --port=8000 --char=Mahtra --remote-url
 
 # Log to a specific file (overrides --char default)
 ruby profanity.rb --port=8000 --char=Mahtra --log-file=~/logs/mahtra.log

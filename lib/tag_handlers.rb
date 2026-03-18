@@ -432,7 +432,7 @@ module TagHandlers
     return unless (m = xml.match(/^<LaunchURL src="(?<src>[^"]+)"/))
 
     url = "https://www.play.net#{m[:src]}"
-    @event_bus.emit(:launch_url, url: url)
+    @event_bus.emit(:launch_url, url: url, remote: @state.remote_url)
     @need_update = true
   end
 

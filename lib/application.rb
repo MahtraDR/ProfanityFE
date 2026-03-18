@@ -54,6 +54,7 @@ class Application
     @shared_state.char_name = cli_options[:char]&.capitalize || 'ProfanityFE'
     @shared_state.no_status = cli_options[:no_status]
     @shared_state.blue_links = cli_options[:links]
+    @shared_state.remote_url = cli_options[:remote_url]
     @shared_state.room_window_only = cli_options[:room_window_only]
     @shared_state.update_terminal_title
 

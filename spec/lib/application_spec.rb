@@ -42,7 +42,7 @@ RSpec.describe Application do
       use_default_colors: false, custom_colors: nil,
       settings_file: nil, no_status: true, links: false,
       speech_ts: false, room_window_only: false,
-      remote_url: nil, log_file: nil, log_dir: nil,
+      remote_url: false, log_file: nil, log_dir: nil,
     }
   end
 

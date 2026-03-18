@@ -31,6 +31,7 @@ class SharedState
     @room_title = ''
     @skip_server_time_offset = false
     @blue_links = false
+    @remote_url = false
     @char_name = nil
     @no_status = false
     @room_window_only = false
@@ -114,6 +115,17 @@ class SharedState
   # @return [void]
   def blue_links=(val)
     @mutex.synchronize { @blue_links = val }
+  end
+
+  # @return [Boolean] whether LaunchURLs are displayed as text instead of opened in browser
+  def remote_url
+    @mutex.synchronize { @remote_url }
+  end
+
+  # @param val [Boolean]
+  # @return [void]
+  def remote_url=(val)
+    @mutex.synchronize { @remote_url = val }
   end
 
   # Atomically check whether the prompt text changed and update state.

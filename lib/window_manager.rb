@@ -289,9 +289,20 @@ class WindowManager
       window = @stream[MAIN_STREAM]
       next unless window
 
-      window.add_string(' *'.dup)
-      window.add_string(" * LaunchURL: #{data[:url]}")
-      window.add_string(' *'.dup)
+      if data[:remote]
+        # --remote-url: display URL on screen for copy/paste (SSH/remote sessions)
+        window.add_string(' *'.dup)
+        window.add_string(" * LaunchURL: #{data[:url]}")
+        window.add_string(' *'.dup)
+      else
+        # Default: open URL in system browser
+        quoted = "\"#{data[:url]}\""
+        case RbConfig::CONFIG['host_os']
+        when /darwin/       then system("open #{quoted} >/dev/null 2>&1 &")
+        when /linux|bsd/    then system("xdg-open #{quoted} >/dev/null 2>&1 &")
+        when /mswin|mingw|cygwin/ then system("start #{quoted} >/dev/null 2>&1 &")
+        end
+      end
     end
 
     event_bus.on(:disconnect) do |_data|

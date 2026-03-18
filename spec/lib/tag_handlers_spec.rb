@@ -114,9 +114,9 @@ RSpec.describe TagHandlers do
   end
   let(:state) do
     Struct.new(:need_prompt, :prompt_text, :skip_server_time_offset,
-               :room_title, :blue_links, :room_window_only, :server_time_offset) do
+               :room_title, :blue_links, :remote_url, :room_window_only, :server_time_offset) do
       def update_terminal_title = nil
-    end.new(false, '>', true, '', false, false, 0.0)
+    end.new(false, '>', true, '', false, false, false, 0.0)
   end
   let(:host) { TagHandlerHost.new(wm: wm, state: state, event_bus: event_bus) }
 

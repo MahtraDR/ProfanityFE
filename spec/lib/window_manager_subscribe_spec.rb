@@ -404,16 +404,23 @@ RSpec.describe WindowManager, '#subscribe_to_events' do
   # ---- Special events ----
 
   describe ':launch_url' do
-    it 'adds three lines to main window' do
-      event_bus.emit(:launch_url, url: 'https://www.play.net/path')
+    it 'displays URL in main window when remote is true' do
+      event_bus.emit(:launch_url, url: 'https://www.play.net/path', remote: true)
       texts = main_window.calls.map { |c| c[:text] }
       expect(texts).to include(' *')
       expect(texts).to include(' * LaunchURL: https://www.play.net/path')
     end
 
+    it 'does not display URL in main window when remote is false' do
+      allow_any_instance_of(Object).to receive(:system)
+      event_bus.emit(:launch_url, url: 'https://www.play.net/path', remote: false)
+      texts = main_window.calls.map { |c| c[:text] }
+      expect(texts).not_to include(' * LaunchURL: https://www.play.net/path')
+    end
+
     it 'is a no-op when no main window exists' do
       wm.instance_variable_set(:@stream, {})
-      expect { event_bus.emit(:launch_url, url: 'https://example.com') }.not_to raise_error
+      expect { event_bus.emit(:launch_url, url: 'https://example.com', remote: true) }.not_to raise_error
     end
   end
 
