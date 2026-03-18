@@ -246,6 +246,10 @@ module RoomDataProcessor
   def commit_room_data_batch
     return unless @wm.room['room']
 
+    # Save exits before clearing — clear_pending_room_data wipes all
+    # pending fields, but exits are emitted separately after the batch.
+    exits_text = @room_pending_exits || ''
+
     # Only update if we have pending data (avoid double-updates clearing data)
     if @room_pending_title || @room_pending_desc || @room_pending_objects || @room_pending_players
       @event_bus.emit(:room_title, text: @room_pending_title || '')
@@ -260,9 +264,9 @@ module RoomDataProcessor
       clear_pending_room_data
     end
 
-    # Always update exits (even on subsequent exit lines)
-    @event_bus.emit(:room_exits, text: @room_pending_exits || '')
-    @room_pending_exits = nil
+    # Always update exits (even on subsequent exit lines).
+    # update_exits triggers render internally.
+    @event_bus.emit(:room_exits, text: exits_text)
     @need_update = true
   end
 
