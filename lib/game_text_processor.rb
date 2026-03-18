@@ -96,9 +96,7 @@ class GameTextProcessor
     @room_pending_title = nil
     @room_pending_title_colors = nil
     @room_pending_desc = nil
-    @room_pending_desc_colors = nil
     @room_pending_objects = nil
-    @room_pending_objects_colors = nil
     @room_pending_players = nil
     @room_pending_exits = nil
     @room_pending_number = nil

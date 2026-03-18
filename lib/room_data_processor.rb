@@ -73,7 +73,6 @@ module RoomDataProcessor
           raw_desc = extract_styled_desc(@current_raw_line) if @current_raw_line
           @room_pending_desc = (raw_desc || text).strip
         end
-        @room_pending_desc_colors = line_colors.dup
         room_data_captured = true
       end
       @room_capture_mode = nil
@@ -99,7 +98,6 @@ module RoomDataProcessor
                               else
                                 text.strip
                               end
-      @room_pending_objects_colors = line_colors.dup
       room_data_captured = true
     end
 
@@ -160,32 +158,34 @@ module RoomDataProcessor
   def process_room_stream(text)
     return nil unless @current_stream&.start_with?('room') && @wm.room['room']
 
+    # Extract pre-computed link regions from SAX-parsed @line_colors.
+    # These have correct positions relative to `text` (the clean text
+    # buffer) and include :cmd for click dispatch. Creature bold regions
+    # are also extracted from @line_colors for the objects section.
+    #
+    # Adjust positions for leading whitespace that .strip removes,
+    # since SAX positions are relative to the original text buffer.
+    left_offset = text.length - text.lstrip.length
+    links = extract_sax_links(left_offset)
+    clean = text.strip
+
     case @current_stream
     when 'room', 'room title'
-      raw = extract_component_content(@current_raw_line, @current_stream) if @current_raw_line
-      @room_pending_title = strip_xml_tags(raw || text).strip
-      @event_bus.emit(:room_title, text: @room_pending_title)
+      @room_pending_title = clean
+      @event_bus.emit(:room_title, text: clean)
     when 'room desc', 'roomDesc'
-      # Preserve raw XML for link processing in room window
-      raw = extract_component_content(@current_raw_line, @current_stream) if @current_raw_line
-      @room_pending_desc = (raw || text).strip
-      @event_bus.emit(:room_desc, text: @room_pending_desc)
+      @room_pending_desc = clean
+      @event_bus.emit(:room_desc, text: clean, links: links)
     when 'room objs'
-      # Preserve raw XML — render_objects_section strips <pushBold/>, <a>, <d> etc.
-      raw = extract_component_content(@current_raw_line, 'room objs') if @current_raw_line
-      @room_pending_objects = (raw || text).strip
-      @event_bus.emit(:room_objects, text: @room_pending_objects)
+      creatures = extract_sax_creatures(text, left_offset)
+      @room_pending_objects = clean
+      @event_bus.emit(:room_objects, text: clean, links: links, creatures: creatures)
     when 'room players'
-      # Preserve raw XML for link processing in room window (GS has <a> tags around names)
-      raw = extract_component_content(@current_raw_line, 'room players') if @current_raw_line
-      @room_pending_players = (raw || text).strip
-      @event_bus.emit(:room_players, text: @room_pending_players)
-      # Also update the indicator if present (fall through below)
+      @room_pending_players = clean
+      @event_bus.emit(:room_players, text: clean, links: links)
     when 'room exits'
-      # Preserve raw XML — render_exits_section strips <d>, <a>, <compass> etc.
-      raw = extract_component_content(@current_raw_line, 'room exits') if @current_raw_line
-      @room_pending_exits = (raw || text).strip
-      @event_bus.emit(:room_exits, text: @room_pending_exits)
+      @room_pending_exits = clean
+      @event_bus.emit(:room_exits, text: clean, links: links)
       clear_pending_room_data
     end
 
@@ -200,6 +200,37 @@ module RoomDataProcessor
 
   private
 
+  # Extract link regions from SAX-computed @line_colors.
+  # Returns only color regions that have a :cmd key (clickable links),
+  # stripping color info (the room window applies its own link preset).
+  # Adjusts positions by the given offset (for leading whitespace removed by .strip).
+  #
+  # @param offset [Integer] number of chars stripped from the left of the text
+  # @return [Array<Hash>] [{start:, end:, cmd:}, ...]
+  def extract_sax_links(offset = 0)
+    @line_colors.select { |c| c[:cmd] }.map do |c|
+      { start: c[:start] - offset, end: c[:end] - offset, cmd: c[:cmd] }
+    end
+  end
+
+  # Extract creature names from monsterbold regions in SAX-computed @line_colors.
+  # Finds color regions that match the monsterbold preset and extracts the
+  # corresponding text from the stripped clean text.
+  #
+  # @param text [String] original text (SAX text buffer, before strip)
+  # @param offset [Integer] left strip offset applied to produce clean text
+  # @return [Array<String>] creature names
+  def extract_sax_creatures(text, offset = 0)
+    monsterbold = PRESET['monsterbold']
+    return [] unless monsterbold
+
+    stripped = text.strip
+    @line_colors.select { |c| c[:fg] == monsterbold[0] && c[:bg] == monsterbold[1] && !c[:cmd] }
+                .filter_map { |c| stripped[(c[:start] - offset)...(c[:end] - offset)]&.strip }
+                .reject(&:empty?)
+                .uniq
+  end
+
   # Reset all pending room data slots to nil.
   #
   # @return [void]
@@ -207,9 +238,7 @@ module RoomDataProcessor
     @room_pending_title = nil
     @room_pending_title_colors = nil
     @room_pending_desc = nil
-    @room_pending_desc_colors = nil
     @room_pending_objects = nil
-    @room_pending_objects_colors = nil
     @room_pending_players = nil
     @room_pending_exits = nil
     @room_pending_number = nil
@@ -249,22 +278,31 @@ module RoomDataProcessor
     nil
   end
 
-  # Extract the inner XML content of a named component/compDef element from
-  # a raw server line using REXML.  Returns the inner markup as a string
-  # (preserving child tags like <pushBold/>) or nil if the element isn't found.
+  # Convert raw XML text to structured data: clean text + link regions.
+  # Used by the inline path (commit_room_data_batch) where pending data
+  # may contain raw XML from @current_raw_line.
   #
-  # @param raw_line [String] the full raw server line (may contain multiple XML elements)
-  # @param component_id [String] the id attribute to match (e.g., 'room objs')
-  # @return [String, nil] inner XML of the matched element, or nil
-  def extract_component_content(raw_line, component_id)
-    doc = REXML::Document.new("<root>#{raw_line}</root>")
-    element = doc.root.elements["component[@id='#{component_id}']"] ||
-              doc.root.elements["compDef[@id='#{component_id}']"]
-    return nil unless element
+  # @param raw_text [String] text potentially containing XML tags
+  # @return [Array(String, Array<Hash>)] [clean_text, [{start:, end:, cmd:}, ...]]
+  def structurize_text(raw_text)
+    return [raw_text, []] if raw_text.empty?
 
-    element.children.map(&:to_s).join
-  rescue REXML::ParseException
-    nil
+    clean, colors = LinkExtractor.extract_links(raw_text, links_enabled: true)
+    links = colors.map { |c| { start: c[:start], end: c[:end], cmd: c[:cmd] } }
+    [clean.strip, links]
+  end
+
+  # Extract creature names from pushBold regions in raw XML text.
+  # Used by the inline path where SAX bold tracking isn't available.
+  #
+  # @param raw_text [String] raw objects text with XML bold tags
+  # @return [Array<String>] creature names
+  def extract_inline_creatures(raw_text)
+    raw_text.scan(%r{<pushBold\s*/?>(.*?)<popBold\s*/?>})
+            .flatten
+            .map { |c| c.gsub(%r{<[^>]+>}, '').strip }
+            .reject(&:empty?)
+            .uniq
   end
 
   # Strip all XML tags from text, keeping only the text content.
@@ -287,14 +325,24 @@ module RoomDataProcessor
 
     # Save exits before clearing — clear_pending_room_data wipes all
     # pending fields, but exits are emitted separately after the batch.
-    exits_text = @room_pending_exits || ''
+    exits_raw = @room_pending_exits || ''
 
     # Only update if we have pending data (avoid double-updates clearing data)
     if @room_pending_title || @room_pending_desc || @room_pending_objects || @room_pending_players
       @event_bus.emit(:room_title, text: @room_pending_title || '')
-      @event_bus.emit(:room_desc, text: @room_pending_desc || '')
-      @event_bus.emit(:room_objects, text: @room_pending_objects || '')
-      @event_bus.emit(:room_players, text: @room_pending_players || '')
+
+      # Inline path stores raw XML — convert to structured data at emission time.
+      desc_clean, desc_links = structurize_text(@room_pending_desc || '')
+      @event_bus.emit(:room_desc, text: desc_clean, links: desc_links)
+
+      obj_raw = @room_pending_objects || ''
+      obj_clean, obj_links = structurize_text(obj_raw)
+      creatures = extract_inline_creatures(obj_raw)
+      @event_bus.emit(:room_objects, text: obj_clean, links: obj_links, creatures: creatures)
+
+      player_clean, player_links = structurize_text(@room_pending_players || '')
+      @event_bus.emit(:room_players, text: player_clean, links: player_links)
+
       @event_bus.emit(:room_supplemental_clear)
 
       # Also update the room players indicator (fallback for games that don't use streams)
@@ -305,7 +353,8 @@ module RoomDataProcessor
 
     # Always update exits (even on subsequent exit lines).
     # update_exits triggers render internally.
-    @event_bus.emit(:room_exits, text: exits_text)
+    exits_clean, exits_links = structurize_text(exits_raw)
+    @event_bus.emit(:room_exits, text: exits_clean, links: exits_links)
     @need_update = true
   end
 

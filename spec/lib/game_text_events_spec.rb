@@ -323,10 +323,10 @@ RSpec.describe 'GameTextProcessor event emissions' do
       room_spy = Object.new
       def room_spy.calls = @calls ||= []
       def room_spy.update_title(t)  = calls << [:update_title, t]
-      def room_spy.update_desc(t)   = calls << [:update_desc, t]
-      def room_spy.update_objects(t) = calls << [:update_objects, t]
-      def room_spy.update_players(t) = calls << [:update_players, t]
-      def room_spy.update_exits(t)  = calls << [:update_exits, t]
+      def room_spy.update_desc(t, links: [])   = calls << [:update_desc, t]
+      def room_spy.update_objects(t, links: [], creatures: []) = calls << [:update_objects, t]
+      def room_spy.update_players(t, links: []) = calls << [:update_players, t]
+      def room_spy.update_exits(t, links: [])  = calls << [:update_exits, t]
       def room_spy.render           = calls << [:render]
       def room_spy.clear_supplemental = calls << [:clear_supplemental]
       def room_spy.update_room_number(t) = calls << [:update_room_number, t]
@@ -406,6 +406,160 @@ RSpec.describe 'GameTextProcessor event emissions' do
       colors = events.last[:colors]
       preset_color = colors.find { |c| c[:fg] == '00ff00' }
       expect(preset_color).not_to be_nil
+    end
+  end
+
+  # ---- Structured room data from real game XML ----
+
+  describe 'structured room data from SAX parsing' do
+    before do
+      wm.room['room'] = main_window
+      PRESET['monsterbold'] = ['ff0000', nil]
+    end
+
+    def process_line(line)
+      processor.send(:instance_variable_set, :@current_raw_line, line)
+      processor.send(:process_line_tags, line)
+    end
+
+    describe 'room objs with monsterbold creature and links' do
+      let(:raw_xml) do
+        <<~'XML'.chomp
+          <component id='room objs'>  You also see the <a exist="173594154" noun="disk">Pandin disk</a>, a <a exist="26164" noun="fissure">narrow fissure</a>, the <a exist="-2078" noun="Lodge">Wayside Lodge</a> and<b> <pushBold/>a <a exist="-477668" noun="assistant">dwarven blacksmith assistant</a><popBold/></b>.</component>
+        XML
+      end
+
+      it 'emits clean text with no XML tags' do
+        events = []
+        event_bus.on(:room_objects) { |data| events << data }
+        process_line(raw_xml)
+
+        text = events.last[:text]
+        expect(text).not_to include('<')
+        expect(text).to include('You also see the Pandin disk')
+        expect(text).to include('dwarven blacksmith assistant')
+        expect(text).to include('Wayside Lodge')
+      end
+
+      it 'emits pre-computed link regions with correct positions' do
+        events = []
+        event_bus.on(:room_objects) { |data| events << data }
+        process_line(raw_xml)
+
+        text = events.last[:text]
+        links = events.last[:links]
+
+        expect(links.length).to be >= 3
+
+        # Verify each link's position matches the actual text
+        links.each do |link|
+          linked_text = text[link[:start]...link[:end]]
+          expect(linked_text).not_to be_nil
+          expect(linked_text).not_to be_empty
+          expect(link[:cmd]).to be_a(String)
+        end
+
+        # Check specific links
+        pandin_link = links.find { |l| l[:cmd] == 'look #173594154' }
+        expect(pandin_link).not_to be_nil
+        expect(text[pandin_link[:start]...pandin_link[:end]]).to eq 'Pandin disk'
+
+        lodge_link = links.find { |l| l[:cmd] == 'look #-2078' }
+        expect(lodge_link).not_to be_nil
+        expect(text[lodge_link[:start]...lodge_link[:end]]).to eq 'Wayside Lodge'
+
+        assistant_link = links.find { |l| l[:cmd] == 'look #-477668' }
+        expect(assistant_link).not_to be_nil
+        expect(text[assistant_link[:start]...assistant_link[:end]]).to eq 'dwarven blacksmith assistant'
+      end
+
+      it 'emits creature names extracted from monsterbold regions' do
+        events = []
+        event_bus.on(:room_objects) { |data| events << data }
+        process_line(raw_xml)
+
+        creatures = events.last[:creatures]
+        expect(creatures).to include(a_string_matching(/dwarven blacksmith assistant/))
+      end
+
+      it 'links remain correct even when blue_links is off' do
+        state.blue_links = false
+        events = []
+        event_bus.on(:room_objects) { |data| events << data }
+        process_line(raw_xml)
+
+        text = events.last[:text]
+        links = events.last[:links]
+
+        # Links are always pre-computed for room components
+        expect(links).not_to be_empty
+        links.each do |link|
+          expect(text[link[:start]...link[:end]]).not_to be_empty
+        end
+      end
+    end
+
+    describe 'room players with links' do
+      let(:raw_xml) do
+        <<~'XML'.chomp
+          <component id='room players'>Also here: <a exist="-10987185" noun="Pandin">Pandin</a>, <a exist="-11184851" noun="Nexuspickbot">Nexuspickbot</a>, Grand Lord <a exist="-10995777" noun="Treeze">Treeze</a></component>
+        XML
+      end
+
+      it 'emits clean text and link regions for player names' do
+        events = []
+        event_bus.on(:room_players) { |data| events << data }
+        process_line(raw_xml)
+
+        text = events.last[:text]
+        links = events.last[:links]
+
+        expect(text).to eq 'Also here: Pandin, Nexuspickbot, Grand Lord Treeze'
+        expect(links.length).to eq 3
+
+        pandin_link = links.find { |l| l[:cmd] == 'look #-10987185' }
+        expect(text[pandin_link[:start]...pandin_link[:end]]).to eq 'Pandin'
+
+        treeze_link = links.find { |l| l[:cmd] == 'look #-10995777' }
+        expect(text[treeze_link[:start]...treeze_link[:end]]).to eq 'Treeze'
+      end
+    end
+
+    describe 'empty room players component' do
+      it 'emits empty text and empty links' do
+        events = []
+        event_bus.on(:room_players) { |data| events << data }
+        process_line("<component id='room players'></component>")
+
+        expect(events.last[:text]).to eq ''
+        expect(events.last[:links]).to eq []
+      end
+    end
+
+    describe 'room exits with direction links' do
+      let(:raw_xml) do
+        <<~'XML'.chomp
+          <component id='room exits'>Obvious paths: <a exist="-11230837" coord="2524,1864" noun="out">out</a><compass><dir value="out"/></compass></component>
+        XML
+      end
+
+      it 'emits clean exits text and link for direction' do
+        events = []
+        event_bus.on(:room_exits) { |data| events << data }
+        process_line(raw_xml)
+
+        text = events.last[:text]
+        links = events.last[:links]
+
+        # compass block is stripped by extract_links pre-strip
+        expect(text).not_to include('compass')
+        expect(text).to include('Obvious paths:')
+        expect(text).to include('out')
+
+        out_link = links.find { |l| l[:cmd] == 'look #-11230837' }
+        expect(out_link).not_to be_nil
+        expect(text[out_link[:start]...out_link[:end]]).to eq 'out'
+      end
     end
   end
 end

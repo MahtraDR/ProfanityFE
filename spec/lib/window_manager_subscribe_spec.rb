@@ -100,10 +100,10 @@ class SpyRoomWindow
   end
 
   def update_title(text)  = @calls << { method: :update_title, text: text }
-  def update_desc(text)   = @calls << { method: :update_desc, text: text }
-  def update_objects(text) = @calls << { method: :update_objects, text: text }
-  def update_players(text) = @calls << { method: :update_players, text: text }
-  def update_exits(text)   = @calls << { method: :update_exits, text: text }
+  def update_desc(text, links: [])   = @calls << { method: :update_desc, text: text, links: links }
+  def update_objects(text, links: [], creatures: []) = @calls << { method: :update_objects, text: text, links: links, creatures: creatures }
+  def update_players(text, links: []) = @calls << { method: :update_players, text: text, links: links }
+  def update_exits(text, links: [])   = @calls << { method: :update_exits, text: text, links: links }
   def update_room_number(text) = @calls << { method: :update_room_number, text: text }
   def update_stringprocs(text) = @calls << { method: :update_stringprocs, text: text }
   def clear_supplemental  = @calls << { method: :clear_supplemental }

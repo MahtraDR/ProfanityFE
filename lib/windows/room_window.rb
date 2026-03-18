@@ -11,6 +11,11 @@ require_relative '../link_extractor'
 # Updates arrive incrementally via the +update_*+ methods and a full
 # {#render} is triggered when exits arrive (the last component in the
 # batch). Mirrors Genie4's room window behavior.
+#
+# All room sections receive pre-computed structured data from the SAX
+# parser: clean text, link regions (with :cmd for click dispatch), and
+# creature names. The room window only applies its own presets/colors
+# during rendering — no XML parsing or regex tag stripping occurs here.
 class RoomWindow < BaseWindow
   # @return [String, nil] preset name applied to the room title color
   attr_accessor :title_preset
@@ -21,7 +26,7 @@ class RoomWindow < BaseWindow
   # @return [String, nil] preset name applied to creature highlight color
   attr_accessor :creatures_preset
 
-  # @return [Boolean] whether clickable links are rendered in the objects section
+  # @return [Boolean] whether clickable links are rendered
   attr_accessor :links_enabled
 
   # Create a new room window with empty section fields.
@@ -30,13 +35,17 @@ class RoomWindow < BaseWindow
   def initialize(*args)
     @title = ''
     @description = ''
+    @desc_links = []
     @objects = ''
+    @objects_links = []
+    @extracted_creatures = []
     @players = ''
+    @players_links = []
     @exits = ''
+    @exits_links = []
     @lich_exits = ''
     @room_number = ''
     @stringprocs = ''
-    @extracted_creatures = [] # For highlighting
     @rendered_lines = []      # [{text:, colors:}, ...] for link_cmd_at
     @links_enabled = false
     super
@@ -44,44 +53,54 @@ class RoomWindow < BaseWindow
 
   # Update the room title text.
   #
-  # @param text [String] the raw title text
+  # @param text [String] clean title text
   # @return [void]
   def update_title(text)
     @title = text.strip
   end
 
-  # Update the room description text.
+  # Update the room description with pre-computed link data.
   #
-  # @param text [String] the raw description text
+  # @param text [String] clean description text
+  # @param links [Array<Hash>] pre-computed link regions [{start:, end:, cmd:}]
   # @return [void]
-  def update_desc(text)
+  def update_desc(text, links: [])
     @description = text.strip
+    @desc_links = links
   end
 
-  # Update the room objects text and extract creature names for highlighting.
+  # Update the room objects with pre-computed link and creature data.
   #
-  # @param text [String] the raw objects text (may contain XML bold tags)
+  # @param text [String] clean objects text
+  # @param links [Array<Hash>] pre-computed link regions [{start:, end:, cmd:}]
+  # @param creatures [Array<String>] creature names for monsterbold highlighting
   # @return [void]
-  def update_objects(text)
+  def update_objects(text, links: [], creatures: [])
     @objects = text.strip
-    extract_creatures(text)
+    @objects_links = links
+    @extracted_creatures = creatures
+    ROOM_OBJECTS.replace(creatures)
   end
 
-  # Update the room players text.
+  # Update the room players with pre-computed link data.
   #
-  # @param text [String] the raw players text
+  # @param text [String] clean players text
+  # @param links [Array<Hash>] pre-computed link regions [{start:, end:, cmd:}]
   # @return [void]
-  def update_players(text)
+  def update_players(text, links: [])
     @players = text.strip
+    @players_links = links
   end
 
-  # Update the room exits text and trigger a full render.
+  # Update the room exits and trigger a full render.
   # Exits are typically the last component in a room update batch.
   #
-  # @param text [String] the raw exits text
+  # @param text [String] clean exits text
+  # @param links [Array<Hash>] pre-computed link regions [{start:, end:, cmd:}]
   # @return [void]
-  def update_exits(text)
+  def update_exits(text, links: [])
     @exits = text.strip
+    @exits_links = links
     render # Trigger full redraw on exits (last component)
   end
 
@@ -100,7 +119,7 @@ class RoomWindow < BaseWindow
   # @return [void]
   def update_room_number(text)
     @room_number = text.strip
-    render # Re-render to include room number
+    render
   end
 
   # Update the string procs text and re-render.
@@ -109,7 +128,7 @@ class RoomWindow < BaseWindow
   # @return [void]
   def update_stringprocs(text)
     @stringprocs = text.strip
-    render # Re-render to include stringprocs
+    render
   end
 
   # Clear supplemental fields (room number, stringprocs) between room changes
@@ -146,31 +165,31 @@ class RoomWindow < BaseWindow
 
     # Room description
     unless @description.empty?
-      render_section(@description, @desc_preset)
+      render_section_with_links(@description, @desc_links, @desc_preset)
       addstr("\n")
     end
 
     # Objects (with creature highlighting and clickable links)
     unless @objects.empty?
-      render_objects_section(@objects)
+      render_objects_section
       addstr("\n")
     end
 
     # Players
     unless @players.empty?
-      render_section(@players, nil)
+      render_section_with_links(@players, @players_links, nil)
       addstr("\n")
     end
 
     # Exits (with clickable direction links when links are enabled)
     unless @exits.empty?
-      render_exits_section(@exits)
+      render_exits_section(@exits, @exits_links)
       addstr("\n")
     end
 
     # Lich supplemental exits (non-cardinal "Room Exits:")
     unless @lich_exits.empty?
-      render_exits_section(@lich_exits)
+      render_lich_exits_section(@lich_exits)
       addstr("\n")
     end
 
@@ -206,72 +225,65 @@ class RoomWindow < BaseWindow
 
   private
 
-  # Extract creature names from bold-tagged XML in the objects text.
+  # Render a text section with an optional preset color.
+  # No link processing — used for title, room number, stringprocs.
   #
-  # @param text [String] raw objects text with XML bold tags
-  # @return [void]
-  # @api private
-  def extract_creatures(text)
-    # Extract bold-wrapped text: <pushBold/>creature<popBold/>
-    # Use (.*?) to handle GS where <a> tags appear inside pushBold regions
-    @extracted_creatures = text.scan(%r{<pushBold\s*/?>(.*?)<popBold\s*/?>}).flatten
-    # Strip any XML tags from extracted names (e.g., GS <a> tags around creatures)
-    @extracted_creatures.map! { |c| c.gsub(%r{<[^>]+>}, '') }
-    # Update global for potential use elsewhere
-    ROOM_OBJECTS.replace(@extracted_creatures)
-  end
-
-  # Append " none." to exits text that ends with a bare colon.
-  #
-  # @param text [String] the exits text to normalize
-  # @return [String] normalized exits text
-  # @api private
-  def normalize_exits(text)
-    return text unless text.end_with?(':')
-
-    "#{text} none."
-  end
-
-  # Render a text section with an optional preset color and highlight processing.
-  # Handles link extraction from <d>/<a> tags when links are enabled.
-  #
-  # @param text [String] the section text (may contain XML link tags)
+  # @param text [String] clean section text
   # @param preset_name [String, nil] preset color key from the PRESET hash
   # @return [void]
   # @api private
   def render_section(text, preset_name)
-    clean_text, line_colors = extract_links(text)
+    line_colors = []
 
     if preset_name && PRESET[preset_name]
       line_colors.push({
         start: 0,
-        end: clean_text.length,
+        end: text.length,
         fg: PRESET[preset_name][0],
         bg: PRESET[preset_name][1]
       })
     end
 
-    HighlightProcessor.apply_highlights(clean_text, line_colors)
-    add_line_wrapped_with_links(clean_text, line_colors)
+    HighlightProcessor.apply_highlights(text, line_colors)
+    add_line_wrapped_with_links(text, line_colors)
+  end
+
+  # Render a text section with pre-computed links and optional preset color.
+  #
+  # @param text [String] clean section text
+  # @param links [Array<Hash>] pre-computed link regions [{start:, end:, cmd:}]
+  # @param preset_name [String, nil] preset color key from the PRESET hash
+  # @return [void]
+  # @api private
+  def render_section_with_links(text, links, preset_name)
+    line_colors = build_link_colors(links)
+
+    if preset_name && PRESET[preset_name]
+      line_colors.push({
+        start: 0,
+        end: text.length,
+        fg: PRESET[preset_name][0],
+        bg: PRESET[preset_name][1]
+      })
+    end
+
+    HighlightProcessor.apply_highlights(text, line_colors)
+    add_line_wrapped_with_links(text, line_colors)
   end
 
   # Render the objects section with creature bold highlighting and clickable links.
   #
-  # @param text [String] raw objects text with XML bold and link tags
   # @return [void]
   # @api private
-  def render_objects_section(text)
-    # Strip bold tags first (<pushBold/>, <popBold/>, and <b>/</ b> wrappers)
-    clean_text = text.gsub(%r{</?(?:pushBold|popBold|b)\s*/?>}, '')
-
-    clean_text, line_colors = extract_links(clean_text)
+  def render_objects_section
+    line_colors = build_link_colors(@objects_links)
 
     # Highlight creatures with monsterbold preset
     preset_name = @creatures_preset || 'monsterbold'
     if PRESET[preset_name]
       @extracted_creatures.each do |creature|
         pos = 0
-        while (idx = clean_text.index(creature, pos))
+        while (idx = @objects.index(creature, pos))
           line_colors.push({
             start: idx,
             end: idx + creature.length,
@@ -283,45 +295,57 @@ class RoomWindow < BaseWindow
       end
     end
 
+    HighlightProcessor.apply_highlights(@objects, line_colors)
+    add_line_wrapped_with_links(@objects, line_colors)
+  end
+
+  # Render the exits section with pre-computed clickable direction links.
+  #
+  # @param text [String] clean exits text
+  # @param links [Array<Hash>] pre-computed link regions
+  # @return [void]
+  # @api private
+  def render_exits_section(text, links)
+    clean_text = text.rstrip.end_with?(':') ? "#{text} none." : text
+
+    line_colors = build_link_colors(links)
     HighlightProcessor.apply_highlights(clean_text, line_colors)
     add_line_wrapped_with_links(clean_text, line_colors)
   end
 
-  # Render the exits section with clickable direction links.
+  # Render Lich-injected exits (may still contain raw XML from Lich injection).
+  # Uses extract_links as these come from inline text, not SAX-processed components.
   #
-  # @param text [String] raw exits text with XML tags
+  # @param text [String] raw Lich exits text
   # @return [void]
   # @api private
-  def render_exits_section(text)
-    # Strip compass block (contains <dir> elements, not needed for display)
-    clean_text = text.gsub(%r{<compass>.*?</compass>}m, '')
-
-    clean_text, line_colors = extract_links(clean_text)
-
-    # Append " none." if exits end with a bare colon
+  def render_lich_exits_section(text)
+    clean_text, line_colors = LinkExtractor.extract_links(text, links_enabled: @links_enabled)
     clean_text = "#{clean_text} none." if clean_text.rstrip.end_with?(':')
 
     HighlightProcessor.apply_highlights(clean_text, line_colors)
     add_line_wrapped_with_links(clean_text, line_colors)
   end
 
-  # Extract <d>/<a> link tags from text via LinkExtractor.
+  # Build color regions from pre-computed link data when links are enabled.
   #
-  # @param text [String] text potentially containing link tags
-  # @return [Array(String, Array<Hash>)] [clean_text, line_colors]
+  # @param links [Array<Hash>] [{start:, end:, cmd:}]
+  # @return [Array<Hash>] color regions with link preset colors and :cmd
   # @api private
-  def extract_links(text)
-    LinkExtractor.extract_links(text, links_enabled: @links_enabled)
-  end
+  def build_link_colors(links)
+    return [] unless @links_enabled && links&.any?
 
-  # Word-wrap and render text across multiple lines, splitting color regions.
-  #
-  # @param text [String] the text to wrap and render
-  # @param line_colors [Array<Hash>] color regions spanning the full text
-  # @return [void]
-  # @api private
-  def add_line_wrapped(text, line_colors)
-    add_line_wrapped_with_links(text, line_colors)
+    preset = PRESET['links'] || LinkExtractor::DEFAULT_LINK_COLOR
+    links.map do |link|
+      {
+        start: link[:start],
+        end: link[:end],
+        fg: preset[0],
+        bg: preset[1],
+        cmd: link[:cmd],
+        priority: 2
+      }
+    end
   end
 
   # Word-wrap and render text, recording each line's colors (including :cmd)

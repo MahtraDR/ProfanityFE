@@ -234,19 +234,19 @@ class WindowManager
     end
 
     event_bus.on(:room_desc) do |data|
-      @room['room']&.update_desc(data[:text])
+      @room['room']&.update_desc(data[:text], links: data[:links] || [])
     end
 
     event_bus.on(:room_objects) do |data|
-      @room['room']&.update_objects(data[:text])
+      @room['room']&.update_objects(data[:text], links: data[:links] || [], creatures: data[:creatures] || [])
     end
 
     event_bus.on(:room_players) do |data|
-      @room['room']&.update_players(data[:text])
+      @room['room']&.update_players(data[:text], links: data[:links] || [])
     end
 
     event_bus.on(:room_exits) do |data|
-      @room['room']&.update_exits(data[:text])
+      @room['room']&.update_exits(data[:text], links: data[:links] || [])
     end
 
     event_bus.on(:room_lich_exits) do |data|

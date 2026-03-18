@@ -383,7 +383,11 @@ module TagHandlers
 
   # Handle <a ...> or <d ...> link opening tag.
   def handle_open_link(xml, text_buffer)
-    return unless @state.blue_links
+    # Always track links for room component streams — the RoomWindow needs
+    # pre-computed link positions even when .links is off, so they're ready
+    # when toggled on. Room stream text is consumed (never reaches main
+    # window), so these extra color regions don't affect other windows.
+    return unless @state.blue_links || @current_stream&.start_with?('room')
 
     preset = PRESET['links'] || LinkExtractor::DEFAULT_LINK_COLOR
     link = { start: text_buffer.length, fg: preset[0], bg: preset[1], priority: 2 }
