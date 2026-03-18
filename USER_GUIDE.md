@@ -6,7 +6,7 @@ configurable multi-window interface with color highlighting, key bindings,
 scrollable text buffers, progress bars, countdown timers, and more -- all
 running inside a standard terminal emulator.
 
-**Version:** 0.82
+**Version:** 1.0.0
 
 ---
 
