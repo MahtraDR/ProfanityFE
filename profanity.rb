@@ -155,80 +155,66 @@ end
 
 # ========== CLI CONFIGURATION ==========
 
-cli_port = 8000
-cli_default_color_id = 7
-cli_default_background_color_id = 0
-cli_use_default_colors = false
-cli_custom_colors = nil
-cli_settings_file = nil
-cli_log_dir = nil
-cli_log_file = nil
-cli_char = nil
-cli_config = nil
-cli_template = nil
-cli_no_status = false
-cli_links = false
-cli_speech_ts = false
-cli_room_window_only = false
-cli_remote_url = nil
+require 'optparse'
 
-ARGV.each do |arg|
-  if arg =~ /^--help|^-h|^-\?/
-    puts ''
-    puts "Profanity FrontEnd v#{VERSION}"
-    puts ''
-    puts '   --char=<name>                       Character name (for log file & process title)'
-    puts '   --config=<name>                     Config name to load (default: same as --char)'
-    puts '   --template=<file>                   Template file name (from templates/)'
-    puts '   --port=<port>                       Game server port (default: 8000)'
-    puts '   --default-color-id=<id>             Default foreground color (default: 7)'
-    puts '   --default-background-color-id=<id>  Default background color (default: 0)'
-    puts '   --custom-colors=<on|off>            Force custom color mode'
-    puts '   --use-default-colors                Use terminal default colors'
-    puts '   --no-status                         Disable process title updates'
-    puts '   --links                             Enable in-game link highlighting'
-    puts '   --speech-ts                         Add timestamps to speech, familiar, and thought windows'
-    puts '   --room-window-only                  Do not echo room data to the story window'
-    puts '   --remote-url=<url>                  Remote game server URL'
-    puts '   --log-file=<path>                   Log file path (default: profanity.log)'
-    puts '   --log-dir=<dir>                     Log directory (default: current directory)'
-    puts ''
-    exit
-  elsif (match = arg.match(/^--char=(?<name>.+)$/))
-    cli_char = match[:name]
-  elsif (match = arg.match(/^--config=(?<name>.+)$/))
-    cli_config = match[:name]
-  elsif (match = arg.match(/^--template=(?<file>.+)$/))
-    cli_template = match[:file]
-  elsif (match = arg.match(/^--port=(?<port>[0-9]+)$/))
-    cli_port = match[:port].to_i
-  elsif (match = arg.match(/^--default-color-id=(?<id>-?[0-9]+)$/))
-    cli_default_color_id = match[:id].to_i
-  elsif (match = arg.match(/^--default-background-color-id=(?<id>-?[0-9]+)$/))
-    cli_default_background_color_id = match[:id].to_i
-  elsif arg =~ /^--use-default-colors$/
-    cli_use_default_colors = true
-  elsif (match = arg.match(/^--custom-colors=(?<value>on|off|yes|no)$/))
-    fix_setting = { 'on' => true, 'yes' => true, 'off' => false, 'no' => false }
-    cli_custom_colors = fix_setting[match[:value]]
-  elsif (match = arg.match(/^--settings-file=(?<file>.*?)$/))
-    cli_settings_file = match[:file]
-  elsif arg =~ /^--no-status$/
-    cli_no_status = true
-  elsif arg =~ /^--links$/
-    cli_links = true
-  elsif arg =~ /^--speech-ts$/
-    cli_speech_ts = true
-  elsif arg =~ /^--room-window-only$/
-    cli_room_window_only = true
-  elsif (match = arg.match(/^--remote-url=(?<url>.+)$/))
-    cli_remote_url = match[:url]
-  elsif (match = arg.match(/^--log-file=(?<file>.+)$/))
-    cli_log_file = match[:file]
-  elsif (match = arg.match(/^--log-dir=(?<dir>.+)$/))
-    cli_log_dir = match[:dir]
+cli_options = {
+  port: 8000,
+  default_color_id: 7,
+  default_background_color_id: 0,
+  use_default_colors: false,
+  custom_colors: nil,
+  settings_file: nil,
+  log_dir: nil,
+  log_file: nil,
+  char: nil,
+  config: nil,
+  template: nil,
+  no_status: false,
+  links: false,
+  speech_ts: false,
+  room_window_only: false,
+  remote_url: nil,
+}
+
+OptionParser.new do |opts|
+  opts.banner = "\nProfanity FrontEnd v#{VERSION}\n\n"
+
+  opts.on('--char=NAME', 'Character name (for log file & process title)') { |v| cli_options[:char] = v }
+  opts.on('--config=NAME', 'Config name to load (default: same as --char)') { |v| cli_options[:config] = v }
+  opts.on('--template=FILE', 'Template file name (from templates/)') { |v| cli_options[:template] = v }
+  opts.on('--port=PORT', Integer, 'Game server port (default: 8000)') { |v| cli_options[:port] = v }
+  opts.on('--default-color-id=ID', Integer, 'Default foreground color (default: 7)') { |v| cli_options[:default_color_id] = v }
+  opts.on('--default-background-color-id=ID', Integer, 'Default background color (default: 0)') { |v| cli_options[:default_background_color_id] = v }
+  opts.on('--custom-colors=MODE', %w[on off yes no], 'Force custom color mode (on/off/yes/no)') do |v|
+    cli_options[:custom_colors] = %w[on yes].include?(v)
   end
-end
+  opts.on('--use-default-colors', 'Use terminal default colors') { cli_options[:use_default_colors] = true }
+  opts.on('--no-status', 'Disable process title updates') { cli_options[:no_status] = true }
+  opts.on('--links', 'Enable in-game link highlighting') { cli_options[:links] = true }
+  opts.on('--speech-ts', 'Add timestamps to speech, familiar, and thought windows') { cli_options[:speech_ts] = true }
+  opts.on('--room-window-only', 'Do not echo room data to the story window') { cli_options[:room_window_only] = true }
+  opts.on('--remote-url=URL', 'Remote game server URL') { |v| cli_options[:remote_url] = v }
+  opts.on('--log-file=PATH', 'Log file path (default: profanity.log)') { |v| cli_options[:log_file] = v }
+  opts.on('--log-dir=DIR', 'Log directory (default: current directory)') { |v| cli_options[:log_dir] = v }
+  opts.on('--settings-file=FILE', 'Settings XML file path (overrides --char/--config lookup)') { |v| cli_options[:settings_file] = v }
+end.parse!
+
+cli_port = cli_options[:port]
+cli_char = cli_options[:char]
+cli_config = cli_options[:config]
+cli_template = cli_options[:template]
+cli_default_color_id = cli_options[:default_color_id]
+cli_default_background_color_id = cli_options[:default_background_color_id]
+cli_use_default_colors = cli_options[:use_default_colors]
+cli_custom_colors = cli_options[:custom_colors]
+cli_settings_file = cli_options[:settings_file]
+cli_no_status = cli_options[:no_status]
+cli_links = cli_options[:links]
+cli_speech_ts = cli_options[:speech_ts]
+cli_room_window_only = cli_options[:room_window_only]
+cli_remote_url = cli_options[:remote_url]
+cli_log_file = cli_options[:log_file]
+cli_log_dir = cli_options[:log_dir]
 
 PORT = cli_port
 CHAR_NAME = cli_char
