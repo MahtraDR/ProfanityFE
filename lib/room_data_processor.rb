@@ -68,7 +68,11 @@ module RoomDataProcessor
     when :desc
       if @wm.room['room']
         # Don't overwrite if already set by component stream (preserves raw XML for links)
-        @room_pending_desc = text.strip unless @room_pending_desc
+        unless @room_pending_desc
+          # Extract from raw line to preserve <d>/<a> link tags for room window.
+          raw_desc = extract_styled_desc(@current_raw_line) if @current_raw_line
+          @room_pending_desc = (raw_desc || text).strip
+        end
         @room_pending_desc_colors = line_colors.dup
         room_data_captured = true
       end
@@ -224,6 +228,25 @@ module RoomDataProcessor
         .map { |obj| obj.sub(/ (who|whose body)? ?(has|is|appears|glows) .+/, '').sub(/ \(.+\)/, '') }
         .map { |obj| obj.strip.scan(/\w+$/).first }
         .compact
+  end
+
+  # Extract the raw roomDesc content from a styled text line.
+  # Preserves <d>/<a> link tags that would otherwise be stripped by tag handlers.
+  #
+  # @param raw_line [String] the full raw server line
+  # @return [String, nil] raw description content, or nil if not found
+  def extract_styled_desc(raw_line)
+    # DR: <style id="roomDesc"/>...content...<style id=""/>
+    if (m = raw_line.match(%r{<style id=["']roomDesc["']\s*/?>(.+?)(?:<style id=["']["']\s*/?>|$)}))
+      return m[1]
+    end
+
+    # GS/alt: <preset id='roomDesc'>...content...</preset>
+    if (m = raw_line.match(%r{<preset id=["']roomDesc["']>(.+?)</preset>}))
+      return m[1]
+    end
+
+    nil
   end
 
   # Extract the inner XML content of a named component/compDef element from
