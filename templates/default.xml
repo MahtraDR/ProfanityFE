@@ -369,7 +369,7 @@
   <gag>stops? a .* from advancing any farther|^The .* begins to advance on|closes? to (?:melee|pole weapon) range on|^\w+ assesses (?:his|her) combat situation</gag>
   <gag>closes to pole (?:weapon|melee) range on you!$|^Showing all skills with field experience</gag>
   <!-- Movement/navigation noise -->
-  <gag>assumes a calm stance, concentrating on something|^The .* lands at \w+('s)? feet|^\w's \w+ lands|^You aren't close enough to attack|^What do you want to advance towards|^(&lt;pushStream id="combat" /&gt;)?(?:A|The) hellish spiral|^You are able to channel all the energy|^The .* absorbs all of the energy|^You are already advancing on|(?:wanders|runs|strolls|goes|drifts|went) (?:north|south|east|west|(?:north|south)east|west|up|down|across)\.$</gag>
+  <gag>assumes a \w+ stance, concentrating on something|^The .* lands at \w+('s)? feet|^\w's \w+ lands|^You aren't close enough to attack|^What do you want to advance towards|^(&lt;pushStream id="combat" /&gt;)?(?:A|The) hellish spiral|^You are able to channel all the energy|^The .* absorbs all of the energy|^You are already advancing on|(?:wanders|runs|strolls|goes|drifts|went) (?:north|south|east|west|(?:north|south)east|west|up|down|across)\.$</gag>
 
   <!-- ==================== SPELL & EQUIPMENT EFFECTS ==============
        Repetitive visual effects from spells, enchanted gear, and familiars -->

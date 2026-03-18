@@ -84,7 +84,7 @@ module RoomDataProcessor
     # handled by process_room_stream instead. Without this guard,
     # process_room_data would consume the text and prevent
     # process_room_stream from running.
-    return room_data_captured if @current_stream =~ /^room(\s|$)/
+    return room_data_captured if @current_stream&.start_with?('room')
 
     # Detect "You also see" for objects (may have leading whitespace)
     if text =~ /^\s*You also see\b/
@@ -145,7 +145,7 @@ module RoomDataProcessor
   #   also needs indicator handling), or nil if not a room stream
   # @api private
   def process_room_stream(text)
-    return nil unless @current_stream =~ /^room(\s|$)/ && @wm.room['room']
+    return nil unless @current_stream&.start_with?('room') && @wm.room['room']
 
     case @current_stream
     when 'room', 'room title'
