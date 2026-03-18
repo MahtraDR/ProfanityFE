@@ -100,6 +100,9 @@ module ColorManager
           @color_id_lookup[code] = color_id
           @color_id_history.push(color_id)
         end
+        # ncurses needs a small delay between init_color/init_pair calls
+        # on some terminal emulators to properly apply color changes.
+        sleep 0.01
         Curses.init_color(color_id, *hex_to_curses_rgb(code))
         color_id
       else
@@ -140,6 +143,7 @@ module ColorManager
           @color_pair_id_lookup[fg_id][bg_id] = color_pair_id
           @color_pair_history.push(color_pair_id)
         end
+        sleep 0.01
         Curses.init_pair(color_pair_id, fg_id, bg_id)
         color_pair_id
       end
