@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../styled_text'
+
 # Base class for all ProfanityFE window types.
 # Provides shared rendering, word-wrap, scrollbar, selection, and window registry.
 
@@ -71,7 +73,11 @@ class BaseWindow < Curses::Window
   # Wrap a string to the given width, splitting color regions across lines.
   # Yields each [line, line_colors] pair to the caller for buffer insertion.
   #
-  # @param string [String] the text to wrap (mutated in place)
+  # Delegates to {StyledText#wrap} which encapsulates all the position
+  # arithmetic. This eliminates the manual start/end adjustment loops
+  # that were the primary source of off-by-one color region bugs.
+  #
+  # @param string [String] the text to wrap
   # @param width [Integer] maximum line width in characters
   # @param string_colors [Array<Hash>] color region descriptors for the full string
   # @param indent [Boolean] whether continuation lines should be indented
@@ -80,42 +86,9 @@ class BaseWindow < Curses::Window
   # @yieldparam line_colors [Array<Hash>] color regions scoped to this line
   # @return [void]
   def wrap_text(string, width, string_colors, indent: true)
-    string = string.dup if string.frozen?
-    while (line = string.slice!(/^.{2,#{width}}(?=\s|$)/)) || (line = string.slice!(0, width))
-      line_colors = []
-      string_colors.each do |h|
-        line_colors.push(h.dup) if h[:start] < line.length
-        h[:end] -= line.length
-        h[:start] = [(h[:start] - line.length), 0].max
-      end
-      string_colors.delete_if { |h| h[:end] < 0 }
-      line_colors.each { |h| h[:end] = [h[:end], line.length].min }
-
-      yield line, line_colors
-
-      break if string.chomp.empty?
-
-      if indent
-        if string[0, 1] == ' '
-          string = " #{string}"
-          string_colors.each do |h|
-            h[:end] += 1
-            h[:start] += h[:start] == 0 ? 2 : 1
-          end
-        else
-          string = "  #{string}"
-          string_colors.each do |h|
-            h[:end] += 2
-            h[:start] += 2
-          end
-        end
-      elsif string[0, 1] == ' '
-        string = string[1, string.length]
-        string_colors.each do |h|
-          h[:end] -= 1
-          h[:start] -= 1
-        end
-      end
+    styled = StyledText.new(string, string_colors)
+    styled.wrap(width, indent: indent).each do |wrapped_line|
+      yield wrapped_line.text, wrapped_line.runs
     end
   end
 

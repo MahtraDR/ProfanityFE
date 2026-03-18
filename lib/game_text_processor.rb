@@ -7,6 +7,7 @@ require_relative 'room_data_processor'
 require_relative 'familiar_notifier'
 require_relative 'xml_tokenizer'
 require_relative 'tag_handlers'
+require_relative 'styled_text'
 
 # Processes game server output in a dedicated thread, handling XML tag parsing,
 # stream routing, room data assembly, spell abbreviation, and UI updates.
@@ -528,16 +529,9 @@ class GameTextProcessor
           # Strip leading whitespace from room-captured text (e.g., "  You also see..."
           # left after description extraction from the same server line)
           if room_captured
-            stripped = text.lstrip
-            offset = text.length - stripped.length
-            if offset > 0
-              text = stripped
-              @line_colors.each do |h|
-                h[:start] = [h[:start] - offset, 0].max
-                h[:end] -= offset
-              end
-              @line_colors.delete_if { |h| h[:end] <= 0 }
-            end
+            styled = StyledText.new(text, @line_colors).lstrip
+            text = styled.text
+            @line_colors = styled.runs
           end
           window.route_string(text, @line_colors, MAIN_STREAM, indent: room_captured ? false : nil)
           @need_update = true
