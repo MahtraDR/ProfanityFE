@@ -63,10 +63,7 @@ class CountdownWindow < BaseWindow
   # @param bg_code [String, nil] background hex color
   # @return [void]
   def draw_segment(text, fg_code, bg_code)
-    pair_id = get_color_pair_id(fg_code, bg_code)
-    attr = Curses.color_pair(pair_id)
-    ProfanityLog.write('countdown', "draw_segment text=#{text.inspect} fg=#{fg_code.inspect} bg=#{bg_code.inspect} pair=#{pair_id} attr=#{attr.to_s(16)}")
-    attrset(attr)
+    attrset(Curses.color_pair(get_color_pair_id(fg_code, bg_code)))
     addstr(text)
     attrset(Curses::A_NORMAL)
   end
@@ -84,9 +81,8 @@ class CountdownWindow < BaseWindow
                         0].max
     if old_value != @value || old_secondary_value != @secondary_value || @old_active != @active
       str = "#{@label}#{[@value, @secondary_value].max.to_s.rjust(maxx - @label.length)}"
-      ProfanityLog.write('countdown', "update val=#{@value} sec=#{@secondary_value} active=#{@active.inspect} end=#{@end_time} sec_end=#{@secondary_end_time} offset=#{$server_time_offset.inspect}")
       setpos(0, 0)
-      if (@value == 0 && @secondary_value == 0) || @active == false
+      if @value == 0 && @secondary_value == 0
         if @active
           str = "#{@label}#{'?'.rjust(maxx - @label.length)}"
           left_background_str = str[0, 1].to_s
