@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative '../link_extractor'
+
 # Dedicated room display with atomic updates and creature highlighting.
 
 # Room information display window.
@@ -286,53 +288,13 @@ class RoomWindow < BaseWindow
     add_line_wrapped_with_links(clean_text, line_colors)
   end
 
-  # Extract <d>/<a> link tags from text.
-  # When links are enabled, builds color regions with :cmd for click dispatch.
-  # When disabled, strips the tags keeping only the link text.
-  # Strips any remaining XML tags as a catch-all.
+  # Extract <d>/<a> link tags from text via LinkExtractor.
   #
   # @param text [String] text potentially containing link tags
   # @return [Array(String, Array<Hash>)] [clean_text, line_colors]
   # @api private
   def extract_links(text)
-    clean_text = text.dup
-    line_colors = []
-
-    if @links_enabled
-      link_preset = PRESET['links'] || GameTextProcessor::DEFAULT_LINK_COLOR
-      while (m = clean_text.match(%r{<([ad])\s?([^>]*)>(.*?)</\1>}))
-        tag_start = m.begin(0)
-        attrs = m[2]
-        link_text = m[3]
-
-        cmd = if (cmd_match = attrs.match(/cmd=(?<q>['"])([^'"]+)\k<q>/))
-                cmd_match[2]
-              elsif (exist_match = attrs.match(/exist=(?<q>['"])([^'"]+)\k<q>/))
-                noun_match = attrs.match(/noun=(?<q>['"])([^'"]+)\k<q>/)
-                noun_match ? "look ##{exist_match[2]}" : "_drag ##{exist_match[2]}"
-              else
-                link_text
-              end
-
-        clean_text = clean_text[0...tag_start] + link_text + clean_text[m.end(0)..]
-
-        line_colors.push({
-          start: tag_start,
-          end: tag_start + link_text.length,
-          fg: link_preset[0],
-          bg: link_preset[1],
-          cmd: cmd,
-          priority: 2
-        })
-      end
-    else
-      clean_text.gsub!(%r{<[ad]\s?[^>]*>(.*?)</[ad]>}, '\1')
-    end
-
-    # Strip any remaining XML tags
-    clean_text.gsub!(%r{<[^>]+>}, '')
-
-    [clean_text, line_colors]
+    LinkExtractor.extract_links(text, links_enabled: @links_enabled)
   end
 
   # Word-wrap and render text across multiple lines, splitting color regions.

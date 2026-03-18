@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'xml_tokenizer'
+require_relative 'link_extractor'
 
 # Tag dispatch and handler methods for game server XML processing.
 #
@@ -18,9 +19,6 @@ require_relative 'xml_tokenizer'
 # - handle_game_text, new_stun, fix_layout_number, parse_room_subtitle,
 #   add_prompt
 module TagHandlers
-  # Default link color [fg, bg] when no 'links' preset is defined in the template
-  DEFAULT_LINK_COLOR = ['5555ff', nil].freeze
-
   # Dispatch table for opening and self-closing tags.
   TAG_DISPATCH = {
     'prompt'       => :handle_prompt_tag,
@@ -423,14 +421,9 @@ module TagHandlers
   def handle_open_link(xml, text_buffer)
     return unless @state.blue_links
 
-    preset = PRESET['links'] || DEFAULT_LINK_COLOR
+    preset = PRESET['links'] || LinkExtractor::DEFAULT_LINK_COLOR
     link = { start: text_buffer.length, fg: preset[0], bg: preset[1], priority: 2 }
-    if (cmd_match = xml.match(/cmd='(?<cmd>[^']+)'/))
-      link[:cmd] = cmd_match[:cmd]
-    elsif (exist_match = xml.match(/exist="(?<id>[^"]+)"/))
-      noun = xml.match(/noun="(?<n>[^"]+)"/)&.[](:n)
-      link[:cmd] = noun ? "look ##{exist_match[:id]}" : "_drag ##{exist_match[:id]}"
-    end
+    link[:cmd] = LinkExtractor.extract_cmd(xml)
     @open_link.push(link)
   end
 
