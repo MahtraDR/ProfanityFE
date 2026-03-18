@@ -45,7 +45,7 @@ running inside a standard terminal emulator.
 ### Installation
 
 ```bash
-git clone https://github.com/MahtraDR/ProfanityFE.git
+git clone https://github.com/elanthia-online/ProfanityFE.git
 cd ProfanityFE
 bundle install
 ```

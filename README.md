@@ -21,7 +21,7 @@ A curses-based terminal frontend for [DragonRealms](https://www.play.net/dr/) an
 ## Quick Start
 
 ```bash
-git clone https://github.com/MahtraDR/ProfanityFE.git
+git clone https://github.com/elanthia-online/ProfanityFE.git
 cd ProfanityFE
 bundle install
 ruby profanity.rb --port=8000 --char=YourCharacter
@@ -41,4 +41,4 @@ Install all dependencies with `bundle install`.
 
 ## License
 
-See upstream [elanthia-online/ProfanityFE](https://github.com/elanthia-online/ProfanityFE).
+Licensed under the GNU General Public License v2.0. See [profanity.rb](profanity.rb) header for details.
