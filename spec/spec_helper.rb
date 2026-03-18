@@ -119,6 +119,8 @@ end
 # Global constants expected by lib/ files
 # ---------------------------------------------------------------------------
 
+require_relative '../lib/config'
+
 MAIN_STREAM = 'main'
 DEFAULT_BUFFER_SIZE = 250
 DEFAULT_TERMINAL_WIDTH = 80
@@ -126,14 +128,18 @@ COUNTDOWN_OFFSET = 0.2
 TIME_SYNC_DELAY = 15
 FEEDBACK_COLOR = 'ffff00'
 BACKTRACE_LIMIT = 4
-SETTINGS_LOCK = Mutex.new
-HIGHLIGHT = {}
-PRESET = {}
-LAYOUT = {}
-SCROLL_WINDOW = []
-ROOM_OBJECTS = []
-PERC_TRANSFORMS = []
 SPEECH_TS = false
+
+# Mutable runtime state owned by CONFIG, aliased for compatibility.
+# Same pattern as lib/constants.rb — specs use the same Config object.
+CONFIG = Config.new
+SETTINGS_LOCK   = CONFIG.lock
+HIGHLIGHT       = CONFIG.highlight
+PRESET          = CONFIG.preset
+LAYOUT          = CONFIG.layout
+SCROLL_WINDOW   = CONFIG.scroll_window
+ROOM_OBJECTS    = CONFIG.room_objects
+PERC_TRANSFORMS = CONFIG.perc_transforms
 
 # ---------------------------------------------------------------------------
 # Top-level helpers defined in profanity.rb
@@ -278,13 +284,8 @@ RSpec.configure do |config|
   config.order = :random
   Kernel.srand config.seed
 
-  # Reset mutable globals between tests
+  # Reset all mutable runtime state between tests
   config.before(:each) do
-    HIGHLIGHT.clear
-    PRESET.clear
-    LAYOUT.clear
-    SCROLL_WINDOW.clear
-    ROOM_OBJECTS.clear
-    PERC_TRANSFORMS.clear
+    CONFIG.reset!
   end
 end

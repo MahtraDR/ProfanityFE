@@ -1,12 +1,16 @@
 # frozen_string_literal: true
 
-# constants.rb: Global mutable constants and synchronization primitives for ProfanityFE.
+require_relative 'config'
 
-# Global constants for ProfanityFE
+# constants.rb: Global constants for ProfanityFE.
 #
-# NOTE: These hashes/arrays are intentionally mutable - they are populated at runtime
-# by load_settings_file and load_layout. Access should be synchronized via SETTINGS_LOCK
-# when reading HIGHLIGHT to prevent race conditions with the settings reload thread.
+# Immutable constants (MAIN_STREAM, DEFAULT_BUFFER_SIZE, etc.) are
+# defined directly. Mutable runtime state (HIGHLIGHT, PRESET, LAYOUT,
+# etc.) is owned by the CONFIG object and aliased here for backward
+# compatibility — all existing code continues to use HIGHLIGHT[key],
+# PRESET[key], etc. unchanged.
+
+# ---- Immutable constants ----
 
 # @return [String] default stream name for the primary game output window
 MAIN_STREAM = 'main'
@@ -30,27 +34,21 @@ COUNTDOWN_OFFSET = 0.2
 # @return [Integer] fallback terminal width when no Curses window is attached
 DEFAULT_TERMINAL_WIDTH = 80
 
-SETTINGS_LOCK = Mutex.new
-
-# Populated by load_settings_file from XML config - maps Regexp => [fg, bg, ul]
-HIGHLIGHT = {}
-
-# Populated by load_settings_file from XML config - maps preset_id => [fg, bg]
-PRESET = {}
-
-# Populated by load_settings_file from XML config - maps layout_id => REXML::Element
-LAYOUT = {}
-
-# Ordered list of scrollable windows for Ctrl+W cycling
-SCROLL_WINDOW = []
-
-# Current room creatures/objects for highlighting (populated by RoomWindow)
-ROOM_OBJECTS = []
-
-# Populated by load_settings_file from XML config - array of [Regexp, replacement_string]
-# Used for percWindow text transformations (spell display abbreviations, etc.)
-# Example XML: <perc-transform pattern=" (roisaen|roisan)" replace=""/>
-PERC_TRANSFORMS = []
-
 # @return [String] hex color for all ProfanityFE feedback messages (dot-commands, status, etc.)
 FEEDBACK_COLOR = 'ffff00'
+
+# ---- Mutable runtime state (owned by CONFIG, aliased for compatibility) ----
+
+# @return [Config] centralized mutable configuration object
+CONFIG = Config.new
+
+# Aliases to CONFIG internals. These are the SAME Hash/Array objects,
+# so mutating HIGHLIGHT is identical to mutating CONFIG.highlight.
+# This preserves backward compatibility across all 12+ consumer files.
+SETTINGS_LOCK  = CONFIG.lock
+HIGHLIGHT      = CONFIG.highlight
+PRESET         = CONFIG.preset
+LAYOUT         = CONFIG.layout
+SCROLL_WINDOW  = CONFIG.scroll_window
+ROOM_OBJECTS   = CONFIG.room_objects
+PERC_TRANSFORMS = CONFIG.perc_transforms
