@@ -256,8 +256,16 @@ class BaseWindow < Curses::Window
   def highlight_selection(start_y, start_x, end_y, end_x)
     @selection_start = [start_y, start_x]
     @selection_end = [end_y, end_x]
-    redraw_with_highlight if respond_to?(:redraw_with_highlight)
+    redraw_with_highlight
   end
+
+  # Redraw the window content with selection highlighting applied.
+  # Subclasses with scrollable buffers (TextWindow, TabbedTextWindow)
+  # override this to render the buffer with selection colors.
+  # The default is a no-op for window types that don't support selection.
+  #
+  # @return [void]
+  def redraw_with_highlight; end
 
   # Whether a selection highlight is currently active on this window.
   #
@@ -390,6 +398,21 @@ class BaseWindow < Curses::Window
   # @return [void]
   def self.register_type(xml_class, &builder)
     type_registry[xml_class] = builder
+  end
+
+  # Parse fg/bg color attributes from an XML layout element.
+  # Splits a comma-separated attribute value into an array, converting
+  # the string 'nil' to actual nil.
+  #
+  # @param element [REXML::Element] XML element containing the attribute
+  # @param attr_name [String] attribute name to parse (e.g. 'fg', 'bg')
+  # @return [Array<String, nil>, nil] parsed color values, or nil if attribute absent
+  def self.parse_color_attrs(element, attr_name)
+    return unless element.attributes[attr_name]
+
+    element.attributes[attr_name].split(',').collect do |val|
+      val == 'nil' ? nil : val
+    end
   end
 
   # --- Window class registry ---

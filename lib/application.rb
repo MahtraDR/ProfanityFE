@@ -275,7 +275,7 @@ class Application
     cmd = @cmd_buffer.clear_and_get
     @shared_state.need_prompt = false
     if (window = @window_mgr.stream[MAIN_STREAM])
-      add_prompt(window, @shared_state.prompt_text, cmd)
+      @window_mgr.add_prompt(window, @shared_state.prompt_text, cmd)
     end
     @cmd_buffer.refresh
     CursesRenderer.doupdate
@@ -286,7 +286,7 @@ class Application
   def send_history_command(index)
     if (cmd = @cmd_buffer.history[index])
       if (window = @window_mgr.stream[MAIN_STREAM])
-        add_prompt(window, @shared_state.prompt_text, cmd)
+        @window_mgr.add_prompt(window, @shared_state.prompt_text, cmd)
         @cmd_buffer.refresh
         CursesRenderer.doupdate
       end
@@ -591,7 +591,7 @@ class Application
   def dispatch_link(window, rel_y, rel_x)
     if (link_cmd = window.link_cmd_at(rel_y, rel_x))
       if (main = @window_mgr.stream[MAIN_STREAM])
-        add_prompt(main, @shared_state.prompt_text, link_cmd)
+        @window_mgr.add_prompt(main, @shared_state.prompt_text, link_cmd)
         CursesRenderer.doupdate
       end
       @cmd_buffer.add_to_history(link_cmd)

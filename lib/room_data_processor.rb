@@ -195,6 +195,21 @@ module RoomDataProcessor
     @room_pending_number = nil
   end
 
+  # Extract player names from "Also here: ..." room text.
+  # Strips status descriptions, titles, and grouping to return bare names.
+  #
+  # @param text [String] raw "Also here: ..." line from the game
+  # @return [Array<String>] list of player names
+  # @api private
+  def parse_player_names(text)
+    text.sub(/^Also here:\s*/, '')
+        .sub(/ and (?<rest>.*)$/) { ", #{Regexp.last_match[:rest]}" }
+        .split(', ')
+        .map { |obj| obj.sub(/ (who|whose body)? ?(has|is|appears|glows) .+/, '').sub(/ \(.+\)/, '') }
+        .map { |obj| obj.strip.scan(/\w+$/).first }
+        .compact
+  end
+
   # Extract the inner XML content of a named component/compDef element from
   # a raw server line using REXML.  Returns the inner markup as a string
   # (preserving child tags like <pushBold/>) or nil if the element isn't found.

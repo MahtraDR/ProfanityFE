@@ -80,10 +80,7 @@ module ColorManager
       return unless @custom_colors
 
       @color_id_lookup.each do |code, id|
-        Curses.init_color(id,
-                          ((code[0..1].to_s.hex / 255.0) * 1000).round,
-                          ((code[2..3].to_s.hex / 255.0) * 1000).round,
-                          ((code[4..5].to_s.hex / 255.0) * 1000).round)
+        Curses.init_color(id, *hex_to_curses_rgb(code))
       end
     end
 
@@ -100,16 +97,11 @@ module ColorManager
         @color_mutex.synchronize do
           color_id = @color_id_history.shift
           @color_id_lookup.delete_if { |_k, v| v == color_id }
-          # ncurses init_color/init_pair needs a small delay between calls
-          sleep 0.01
-          Curses.init_color(color_id,
-                            ((code[0..1].to_s.hex / 255.0) * 1000).round,
-                            ((code[2..3].to_s.hex / 255.0) * 1000).round,
-                            ((code[4..5].to_s.hex / 255.0) * 1000).round)
           @color_id_lookup[code] = color_id
           @color_id_history.push(color_id)
-          color_id
         end
+        Curses.init_color(color_id, *hex_to_curses_rgb(code))
+        color_id
       else
         # Find closest match in fixed color palette
         least_error = nil
@@ -144,15 +136,21 @@ module ColorManager
         @color_mutex.synchronize do
           color_pair_id = @color_pair_history.shift
           @color_pair_id_lookup.each { |_w, x| x.delete_if { |_y, z| z == color_pair_id } }
-          # ncurses init_color/init_pair needs a small delay between calls
-          sleep 0.01
-          Curses.init_pair(color_pair_id, fg_id, bg_id)
           @color_pair_id_lookup[fg_id] ||= {}
           @color_pair_id_lookup[fg_id][bg_id] = color_pair_id
           @color_pair_history.push(color_pair_id)
-          color_pair_id
         end
+        Curses.init_pair(color_pair_id, fg_id, bg_id)
+        color_pair_id
       end
+    private
+
+    # Convert a 6-digit hex color code to curses RGB values (0-1000 range).
+    #
+    # @param code [String] 6-digit hex color code (e.g., "ff0000")
+    # @return [Array<Integer>] [r, g, b] each in 0..1000
+    def hex_to_curses_rgb(code)
+      [code[0..1], code[2..3], code[4..5]].map { |c| ((c.hex / 255.0) * 1000).round }
     end
   end
 end

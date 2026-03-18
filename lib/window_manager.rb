@@ -95,6 +95,21 @@ class WindowManager
   # @note Returns the live hash, not a copy. Mutations affect room display.
   attr_reader :room
 
+  # Display a prompt in a stream window, with optional command text.
+  # Deduplicates consecutive identical prompts via the window's
+  # +duplicate_prompt?+ method if available.
+  #
+  # @param window [BaseWindow] the target stream window
+  # @param prompt_text [String] the prompt string (e.g., "H>")
+  # @param cmd [String] optional command text appended after the prompt
+  # @return [void]
+  def add_prompt(window, prompt_text, cmd = '')
+    return if cmd.empty? && window.respond_to?(:duplicate_prompt?) && window.duplicate_prompt?(prompt_text)
+
+    prompt_colors = [{ start: 0, end: (prompt_text.length + cmd.length), fg: '555555' }]
+    window.route_string("#{prompt_text}#{cmd}", prompt_colors, MAIN_STREAM)
+  end
+
   # Subscribe to events from the parser's EventBus.
   #
   # Bridges typed events to the appropriate window objects: routes text
@@ -406,17 +421,17 @@ class WindowManager
 
     [ExpWindow, PercWindow, RoomWindow].each do |klass|
       klass.list.to_a.each do |win|
-        win.resize(fix_layout_number(win.layout[0]), fix_layout_number(win.layout[1]))
-        win.move(fix_layout_number(win.layout[2]), fix_layout_number(win.layout[3]))
+        reposition(win)
         win.redraw
         win.noutrefresh
       end
     end
 
-    [IndicatorWindow.list.to_a, ProgressWindow.list.to_a, CountdownWindow.list.to_a].flatten.each do |win|
-      win.resize(fix_layout_number(win.layout[0]), fix_layout_number(win.layout[1]))
-      win.move(fix_layout_number(win.layout[2]), fix_layout_number(win.layout[3]))
-      win.noutrefresh
+    [IndicatorWindow, ProgressWindow, CountdownWindow].each do |klass|
+      klass.list.to_a.each do |win|
+        reposition(win)
+        win.noutrefresh
+      end
     end
 
     if @command_window
@@ -427,6 +442,17 @@ class WindowManager
 
     Curses.doupdate
     end # CursesRenderer.synchronize
+  end
+
+  private
+
+  # Resize and reposition a window according to its stored layout.
+  #
+  # @param win [BaseWindow] the window to reposition
+  # @return [void]
+  def reposition(win)
+    win.resize(fix_layout_number(win.layout[0]), fix_layout_number(win.layout[1]))
+    win.move(fix_layout_number(win.layout[2]), fix_layout_number(win.layout[3]))
   end
 end
 

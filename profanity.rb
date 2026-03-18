@@ -85,13 +85,7 @@ rescue StandardError
   nil
 end
 
-# Parse fg/bg color attributes from an XML layout element.
-# Splits a comma-separated attribute value into an array, converting
-# the string 'nil' to actual nil.
-#
-# @param element [REXML::Element] XML element containing the attribute
-# @param attr_name [String] attribute name to parse (e.g. 'fg', 'bg')
-# @return [Array<String, nil>, nil] parsed color values, or nil if attribute absent
+# @deprecated Use {BaseWindow.parse_color_attrs} instead.
 def parse_color_attrs(element, attr_name)
   return unless element.attributes[attr_name]
 
@@ -100,11 +94,7 @@ def parse_color_attrs(element, attr_name)
   end
 end
 
-# Extract player names from "Also here: ..." room text.
-# Strips status descriptions, titles, and grouping to return bare names.
-#
-# @param text [String] raw "Also here: ..." line from the game
-# @return [Array<String>] list of player names
+# @deprecated Use RoomDataProcessor#parse_player_names instead.
 def parse_player_names(text)
   text.sub(/^Also here:\s*/, '')
       .sub(/ and (?<rest>.*)$/) { ", #{Regexp.last_match[:rest]}" }
@@ -114,8 +104,8 @@ def parse_player_names(text)
       .compact
 end
 
-# Display prompt in window, with optional command text.
-# Uses polymorphic duplicate_prompt? and route_string to avoid type-checking.
+# @deprecated Use {WindowManager#add_prompt} instead.
+#   Kept for backward compatibility with spec_helper and external callers.
 def add_prompt(window, prompt_text, cmd = '')
   return if cmd.empty? && window.respond_to?(:duplicate_prompt?) && window.duplicate_prompt?(prompt_text)
 
@@ -123,33 +113,77 @@ def add_prompt(window, prompt_text, cmd = '')
   window.route_string("#{prompt_text}#{cmd}", prompt_colors, MAIN_STREAM)
 end
 
-# Safe arithmetic expression evaluator for layout dimensions
-# Only allows: integers, +, -, *, /, (), and whitespace
+# Safe arithmetic expression evaluator for layout dimensions.
+# Parses integers, +, -, *, /, and parentheses without using eval.
+# Uses a simple recursive descent parser (expression → term → factor).
+#
+# @param expr [String] arithmetic expression (e.g., "lines-2", "cols/3+1")
+# @return [Integer] computed result, or 0 on error
 def safe_eval_arithmetic(expr)
-  normalized = expr.gsub(/\s+/, '')
-  unless normalized.match?(%r{\A[\d+\-*/()]+\z})
+  tokens = expr.gsub(/\s+/, '').scan(%r{(\d+|[+\-*/()]|.)})
+               .flatten.reject(&:empty?)
+
+  # Reject tokens that aren't valid arithmetic
+  unless tokens.all? { |t| t.match?(%r{\A(\d+|[+\-*/()])\z}) }
     warn "Invalid layout expression (unsafe characters): #{expr}"
     return 0
   end
-  if normalized.include?('**')
-    warn "Invalid layout expression (exponentiation not allowed): #{expr}"
-    return 0
-  end
-  depth = 0
-  normalized.each_char do |c|
-    depth += 1 if c == '('
-    depth -= 1 if c == ')'
-    if depth < 0
-      warn "Invalid layout expression (unbalanced parens): #{expr}"
-      return 0
+
+  pos = [0] # mutable position index
+
+  # Recursive descent: expr → term ((+|-) term)*
+  parse_expr = nil
+  parse_term = nil
+  parse_factor = nil
+
+  parse_factor = lambda {
+    if tokens[pos[0]] == '('
+      pos[0] += 1
+      result = parse_expr.call
+      pos[0] += 1 if tokens[pos[0]] == ')' # consume ')'
+      result
+    elsif tokens[pos[0]] == '-'
+      pos[0] += 1
+      -parse_factor.call
+    elsif tokens[pos[0]]&.match?(/\A\d+\z/)
+      val = tokens[pos[0]].to_i
+      pos[0] += 1
+      val
+    else
+      0
     end
-  end
-  if depth != 0
-    warn "Invalid layout expression (unbalanced parens): #{expr}"
-    return 0
-  end
-  eval(expr).to_i
-rescue SyntaxError, ZeroDivisionError => e
+  }
+
+  parse_term = lambda {
+    result = parse_factor.call
+    while pos[0] < tokens.length && %w[* /].include?(tokens[pos[0]])
+      op = tokens[pos[0]]
+      pos[0] += 1
+      right = parse_factor.call
+      if op == '*'
+        result *= right
+      elsif right != 0
+        result /= right
+      else
+        result = 0 # division by zero → 0
+      end
+    end
+    result
+  }
+
+  parse_expr = lambda {
+    result = parse_term.call
+    while pos[0] < tokens.length && %w[+ -].include?(tokens[pos[0]])
+      op = tokens[pos[0]]
+      pos[0] += 1
+      right = parse_term.call
+      result = op == '+' ? result + right : result - right
+    end
+    result
+  }
+
+  parse_expr.call.to_i
+rescue StandardError => e
   warn "Layout expression error: #{e.message} in '#{expr}'"
   0
 end

@@ -60,10 +60,10 @@ class CountdownWindow < BaseWindow
     @value = [(@end_time.to_f - Time.now.to_f + $server_time_offset.to_f - COUNTDOWN_OFFSET).ceil, 0].max
     @secondary_value = [(@secondary_end_time.to_f - Time.now.to_f + $server_time_offset.to_f - COUNTDOWN_OFFSET).ceil,
                         0].max
-    if (old_value != @value) or (old_secondary_value != @secondary_value) or (@old_active != @active)
+    if old_value != @value || old_secondary_value != @secondary_value || @old_active != @active
       str = "#{@label}#{[@value, @secondary_value].max.to_s.rjust(maxx - @label.length)}"
       setpos(0, 0)
-      if ((@value == 0) and (@secondary_value == 0)) or (@active == false)
+      if (@value == 0 && @secondary_value == 0) || @active == false
         if @active
           str = "#{@label}#{'?'.rjust(maxx - @label.length)}"
           left_background_str = str[0, 1].to_s
@@ -101,8 +101,8 @@ BaseWindow.register_type('countdown') do |height, width, top, left, element, wm|
   window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
   window.scrollok(false)
   window.label = element.attributes['label'] if element.attributes['label']
-  window.fg = parse_color_attrs(element, 'fg') if element.attributes['fg']
-  window.bg = parse_color_attrs(element, 'bg') if element.attributes['bg']
+  window.fg = BaseWindow.parse_color_attrs(element,'fg') if element.attributes['fg']
+  window.bg = BaseWindow.parse_color_attrs(element,'bg') if element.attributes['bg']
   wm.countdown[element.attributes['value']] = window if element.attributes['value']
   window.update
   window

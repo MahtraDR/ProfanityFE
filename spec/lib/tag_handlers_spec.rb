@@ -201,7 +201,7 @@ RSpec.describe TagHandlers do
       state.skip_server_time_offset = false
       host.dispatch_tag('<prompt time="1679000000">H&gt;</prompt>', String.new)
       expect(state.skip_server_time_offset).to be true
-      expect($server_time_offset).to be_a(Float)
+      expect(state.server_time_offset).to be_a(Float)
     end
 
     it 'sets need_prompt to true on repeated same prompt' do
