@@ -89,6 +89,8 @@ class CommandBuffer
   # @param ch [String] single character to insert
   # @return [void]
   def put_ch(ch)
+    return unless @window
+
     if (@pos - @offset + 1) >= maxx
       @window.setpos(0, 0)
       @window.delch
@@ -109,6 +111,8 @@ class CommandBuffer
   #
   # @return [void]
   def cursor_left
+    return unless @window
+
     if (@offset > 0) && (@pos - @offset == 0)
       @pos -= 1
       @offset -= 1
@@ -124,6 +128,8 @@ class CommandBuffer
   #
   # @return [void]
   def cursor_right
+    return unless @window
+
     if ((@text.length - @offset) >= (maxx - 1)) && (@pos - @offset + 1) >= maxx
       if @pos < @text.length
         @window.setpos(0, 0)
@@ -146,7 +152,7 @@ class CommandBuffer
   #
   # @return [void]
   def cursor_word_left
-    return unless @pos > 0
+    return unless @window && @pos > 0
 
     new_pos = if (m = @text[0...(@pos - 1)].match(/.*(\w[^\w\s]|\W\w|\s\S)/))
                 m.begin(1) + 1
@@ -173,7 +179,7 @@ class CommandBuffer
   #
   # @return [void]
   def cursor_word_right
-    return unless @pos < @text.length
+    return unless @window && @pos < @text.length
 
     new_pos = if (m = @text[@pos..-1].match(/\w[^\w\s]|\W\w|\s\S/))
                 @pos + m.begin(0) + 1
@@ -200,6 +206,8 @@ class CommandBuffer
   #
   # @return [void]
   def cursor_home
+    return unless @window
+
     @pos = 0
     @window.setpos(0, 0)
     (1..@offset).each do |num|
@@ -217,6 +225,8 @@ class CommandBuffer
   #
   # @return [void]
   def cursor_end
+    return unless @window
+
     if @text.length < (maxx - 1)
       @pos = @text.length
       @window.setpos(0, @pos)
@@ -246,7 +256,7 @@ class CommandBuffer
   #
   # @return [void]
   def backspace
-    return unless @pos > 0
+    return unless @window && @pos > 0
 
     @pos -= 1
     delete_at_position(@pos)
@@ -258,6 +268,7 @@ class CommandBuffer
   #
   # @return [void]
   def delete_char
+    return unless @window
     return if @text.empty? || @pos >= @text.length
 
     delete_at_position(@pos)
@@ -291,7 +302,7 @@ class CommandBuffer
   #
   # @return [void]
   def kill_forward
-    return unless @pos < @text.length
+    return unless @window && @pos < @text.length
 
     @kill.before(@text, @pos)
     if @pos == 0
@@ -311,6 +322,7 @@ class CommandBuffer
   #
   # @return [void]
   def kill_line
+    return unless @window
     return if @text.empty?
 
     @kill.before(@text, @pos)
@@ -343,7 +355,7 @@ class CommandBuffer
   #
   # @return [void]
   def previous_command
-    return unless @history_pos < (@history.length - 1)
+    return unless @window && @history_pos < (@history.length - 1)
 
     @history[@history_pos] = @text.dup
     @history_pos += 1
@@ -363,6 +375,8 @@ class CommandBuffer
   #
   # @return [void]
   def next_command
+    return unless @window
+
     if @history_pos == 0
       unless @text.empty?
         @history[@history_pos] = @text.dup
@@ -401,8 +415,10 @@ class CommandBuffer
     @text.clear
     @pos = 0
     @offset = 0
-    @window.deleteln
-    @window.setpos(0, 0)
+    if @window
+      @window.deleteln
+      @window.setpos(0, 0)
+    end
     cmd
   end
 

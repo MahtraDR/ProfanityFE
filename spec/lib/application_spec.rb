@@ -345,14 +345,8 @@ RSpec.describe Application do
       expect(app_char.shared_state.char_name).to eq 'Mahtra'
     end
 
-    # CommandBuffer cursor methods call @window.setpos without nil-guarding.
-    # If a key action fires before the window is attached (e.g., during
-    # startup race or after layout error), it crashes with NoMethodError.
-    # CommandBuffer#refresh already nil-guards (@window&.), but
-    # cursor_left/right/home/end do not.
-    it 'key_action cursor procs crash without window' do
-      pending 'CommandBuffer cursor methods need nil-guard on @window'
-      app.key_action['cursor_left'].call
+    it 'key_action cursor procs are safe without window' do
+      expect { app.key_action['cursor_left'].call }.not_to raise_error
     end
   end
 
