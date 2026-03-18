@@ -484,6 +484,7 @@ BaseWindow.register_type('tabbed') do |height, width, top, left, element, wm|
 
   window = TabbedTextWindow.new(height, width - 1, top, left)
   window.scrollbar = Curses::Window.new(window.maxy, 1, window.begy, window.begx + window.maxx)
+  window.scrollbar.bkgd(Curses.color_pair(get_color_pair_id(nil, nil)))
   window.layout = [element.attributes['height'], element.attributes['width'], element.attributes['top'], element.attributes['left']]
   window.scrollok(true)
   window.setscrreg(1, window.maxy - 1)

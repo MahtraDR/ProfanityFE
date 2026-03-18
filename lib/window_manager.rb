@@ -459,7 +459,11 @@ end
 # Register the command window type. This is a plain Curses::Window (not a
 # BaseWindow subclass), so it lives here rather than in a window file.
 BaseWindow.register_type('command') do |height, width, top, left, element, wm|
-  wm.instance_variable_set(:@command_window, Curses::Window.new(height, width, top, left)) unless wm.command_window
+  unless wm.command_window
+    cmd_win = Curses::Window.new(height, width, top, left)
+    cmd_win.bkgd(Curses.color_pair(get_color_pair_id(nil, nil)))
+    wm.instance_variable_set(:@command_window, cmd_win)
+  end
   wm.instance_variable_set(:@command_window_layout, [
     element.attributes['height'], element.attributes['width'],
     element.attributes['top'], element.attributes['left']
